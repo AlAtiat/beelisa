@@ -7,11 +7,15 @@ class BeELISA(toga.App):
         """
         Construct and show the Toga application.
         """
+        self.status_label = None
+        self.log_window = None
+        self.log_textbox = None
+        
         # Main window title
         self.main_window = toga.MainWindow(title=self.formal_name)
         
         # Create main container
-        main_box = toga.Box(style=Pack(direction=COLUMN))
+        main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         
 
         # Create tab container for different views
@@ -25,10 +29,15 @@ class BeELISA(toga.App):
         
         main_box.add(self.content_tabs)
         
+        # Logs seperate window
+        open_logs_btn = toga.Button("Open Logs", on_press=self.show_logs, style=Pack(margin=5))
+        main_box.add(open_logs_btn)
+
+
         # Status bar
         self.status_label = toga.Label(
             "Ready",
-            style=Pack(margin=2)  # padding is OK for Label
+            style=Pack(margin=2)  
         )
         main_box.add(self.status_label)
         
@@ -51,6 +60,41 @@ class BeELISA(toga.App):
         return view.create_layout()
 
     
+    
+    def show_logs(self, widget=None):
+        """ Open Logs Window """
+        
+        def build():
+            self.log_window = toga.Window(title="BeELISA Logging Window")
+            self.log_textbox = toga.MultilineTextInput(
+                value = '',
+                readonly = True,
+                style=Pack(flex=1, font_size=10, margin=1, background_color='transparent')
+            )
+            box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+            box.add(self.log_textbox)
+        
+            self.log_window.content = box
+            
+        if self.log_window is None:
+            build()
+        try:
+            self.log_window.show()
+        except Exception:
+            build()
+            self.log_window.show()
+
+            
+    def log(self, message: str):
+        status = getattr(self, "status_label", None)
+        if status is not None:
+            status.text = message
+
+        textbox = getattr(self, "log_textbox", None)
+        if textbox is not None:
+            textbox.value = (textbox.value or "") + message + "\n"
+
+            
 
 
 def main():

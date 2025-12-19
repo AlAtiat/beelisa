@@ -59,13 +59,6 @@ class PlateWidget:
         """Create interactive clickable well plate grid."""
         plate_container = toga.Box(style=Pack(direction=COLUMN, margin=10, flex=1))
 
-        # Title
-        title = toga.Label(
-            'Interactive Well Plate (Click or Drag to Select):',
-            style=Pack(margin=5, font_size=12, font_weight='bold')
-        )
-        plate_container.add(title)
-
         # Create grid container with row and column labels
         grid_with_labels = toga.Box(style=Pack(direction=COLUMN, margin=5))
 
@@ -75,7 +68,7 @@ class PlateWidget:
         for col in range(12):
             col_label = toga.Label(
                 str(col + 1),
-                style=Pack(width=35, text_align='center', font_size=9)
+                style=Pack(width=37, text_align='center', font_size=10)
             )
             header_row.add(col_label)
         grid_with_labels.add(header_row)
@@ -149,12 +142,6 @@ class PlateWidget:
             style=Pack(margin=5, flex=1)
         )
 
-        select_none_btn = toga.Button(
-            'Select None',
-            on_press=self.on_select_none,
-            style=Pack(margin=5, flex=1)
-        )
-
         clear_btn = toga.Button(
             'Clear Plate',
             on_press=self.on_clear_plate,
@@ -167,7 +154,7 @@ class PlateWidget:
             style=Pack(margin=5, flex=1)
         )
 
-        actions_row.add(select_all_btn, select_none_btn, clear_btn, cancel_range_btn)
+        actions_row.add(select_all_btn, clear_btn, cancel_range_btn)
         controls_box.add(actions_row)
 
         return controls_box
@@ -238,6 +225,10 @@ class PlateWidget:
             f"Neg: {counts[WellType.NEGATIVE_CONTROL]}"
         )
         self.well_count_label.text = count_text
+        
+    def _well_name(self, row, col):
+        """Return well name like A01, B12."""
+        return f"{chr(65 + row)}{col + 1:02d}"
 
     async def on_well_click(self, widget, row, col):
         """
@@ -251,6 +242,7 @@ class PlateWidget:
             # First click - enter range selection mode
             self.range_selection_mode = True
             self.range_start_well = (row, col)
+            self.app.log(f"Range start selected: {self._well_name(row, col)}")
 
             # Visual feedback - update only this button
             self._update_specific_buttons({(row, col)})
@@ -259,11 +251,16 @@ class PlateWidget:
             # Second click - complete range selection
             row_start, col_start = self.range_start_well
             row_end, col_end = (row, col)
-
+            active = self.model.active_key.name
+            self.app.log(
+                f"Apply range {self._well_name(row_start, col_start)} → {self._well_name(row_end, col_end)} as {active}"
+            )
             # Select the range and get affected wells
             affected_wells = self.model.select_range(
                 row_start, col_start, row_end, col_end
             )
+            self.app.log(f"Updated {len(affected_wells)} wells to {active}.")
+
 
             # Exit range selection mode
             self.range_selection_mode = False
@@ -284,6 +281,8 @@ class PlateWidget:
             # Update only the former range start button
             if old_start:
                 self._update_specific_buttons({old_start})
+            
+            self.app.log("Canceled range selection")
 
     def on_well_type_changed(self, widget):
         """Handle well type dropdown change."""
@@ -296,69 +295,20 @@ class PlateWidget:
             'Negative Control': WellType.NEGATIVE_CONTROL,
         }
         self.model.active_key = type_map[widget.value]
+        self.app.log(f"well type changed to {widget.value}")
 
     async def on_select_all(self, widget):
         """Handle Select All button."""
         self.model.select_all()
         self.refresh_visualization()
+        self.app.log("All wells have been filled")
 
-    async def on_select_none(self, widget):
-        """Handle Select None button."""
-        self.model.select_none()
-        self.refresh_visualization()
+
 
     async def on_clear_plate(self, widget):
         """Handle Clear Plate button."""
         self.model.select_none()
         self.refresh_visualization()
+        self.app.log("Well Plate Cleared")
 
-    async def on_toggle_well(self, widget):
-        """Handle individual well toggle from dropdowns."""
-        row = ord(self.row_dropdown.value) - ord('A')
-        col = int(self.col_dropdown.value) - 1
-        self.model.toggle(row, col)
-        # Only update the single changed well
-        self.refresh_visualization(changed_wells={(row, col)})
 
-    async def on_select_row(self, widget):
-        """Handle row selection."""
-        row = ord(self.row_dropdown.value) - ord('A')
-        self.model.select_row(row)
-        # Update entire row
-        changed_wells = {(row, col) for col in range(12)}
-        self.refresh_visualization(changed_wells=changed_wells)
-
-    async def on_select_column(self, widget):
-        """Handle column selection."""
-        col = int(self.col_dropdown.value) - 1
-        self.model.select_column(col)
-        # Update entire column
-        changed_wells = {(row, col) for row in range(8)}
-        self.refresh_visualization(changed_wells=changed_wells)
-
-    async def on_select_range(self, widget):
-        """Handle range selection from dropdowns."""
-        row_from = ord(self.range_row_from.value) - ord('A')
-        col_from = int(self.range_col_from.value) - 1
-        row_to = ord(self.range_row_to.value) - ord('A')
-        col_to = int(self.range_col_to.value) - 1
-
-        affected_wells = self.model.select_range(row_from, col_from, row_to, col_to)
-        self.refresh_visualization(changed_wells=affected_wells)
-
-    def get_well_assignments(self):
-        """Get current plate configuration for ELISA processing with selection order."""
-        return {
-            'blanks': self.model.get_names(WellType.BLANK),
-            'calibrants': self.model.get_names(WellType.CALIBRANT),
-            'samples': self.model.get_names(WellType.SAMPLE),
-            'blank_indexes': self.model.get_row_major_indexes(WellType.BLANK),
-            'calibrant_indexes': self.model.get_row_major_indexes(WellType.CALIBRANT),
-            'sample_indexes': self.model.get_row_major_indexes(WellType.SAMPLE),
-
-            # NEW: Include ordered selections
-            'blanks_ordered': self.model.get_selection_order_for_type(WellType.BLANK),
-            'calibrants_ordered': self.model.get_selection_order_for_type(WellType.CALIBRANT),
-            'samples_ordered': self.model.get_selection_order_for_type(WellType.SAMPLE),
-            'all_selections_ordered': self.model.selection_order
-        }
