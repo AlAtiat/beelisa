@@ -9,7 +9,7 @@ class PlateWidget:
 
     def __init__(self, app, model=None):
         self.app = app
-        self.model = model or PlateModel(8, 12)
+        self.model = model or PlateModel(app, 8, 12)
         self.container = None
         self.well_count_label = None
 

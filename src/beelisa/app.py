@@ -1,7 +1,7 @@
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-
+from .data import ELISAParser
 class BeELISA(toga.App):
     def startup(self):
         """
@@ -10,6 +10,12 @@ class BeELISA(toga.App):
         self.status_label = None
         self.log_window = None
         self.log_textbox = None
+        
+        self.metadata_df = None
+        self.plate_raw_df = None
+        self.plate_id_df = None
+        self.parser = ELISAParser(self)
+        self.plate_design_df = None
         
         # Main window title
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -25,12 +31,18 @@ class BeELISA(toga.App):
         
         #  tabs using the content.append() method
         self.content_tabs.content.append("ELISA Analysis", self.create_elisa_view())
-        self.content_tabs.content.append("Data View", self.create_data_view())
+        # self.content_tabs.content.append("Data View", self.create_data_view())
         
         main_box.add(self.content_tabs)
         
+        
         # Logs seperate window
-        open_logs_btn = toga.Button("Open Logs", on_press=self.show_logs, style=Pack(margin=5))
+        start_analysis_btn = toga.Button("Start Analysis", on_press=self.start_analysis, style=Pack(margin=5))
+        main_box.add(start_analysis_btn)
+        
+        
+        # Logs seperate window
+        open_logs_btn = toga.Button("Open Logs", on_press=self.show_logs, style=Pack(margin=3))
         main_box.add(open_logs_btn)
 
 
@@ -53,13 +65,16 @@ class BeELISA(toga.App):
         view = Mainboard(self)
         return view.create_layout()
 
-    def create_data_view(self):
-        """Create data viewing interface"""
-        from .ui.data_view import DataView
-        view = DataView(self)
-        return view.create_layout()
+    # def create_data_view(self):
+    #     """Create data viewing interface"""
+    #     from .ui.data_view import DataView
+    #     view = DataView(self)
+    #     return view.create_layout()
 
     
+    
+    def start_analysis(self, widget=None):
+        self.log('started analysis')
     
     def show_logs(self, widget=None):
         """ Open Logs Window """

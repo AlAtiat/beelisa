@@ -2,62 +2,18 @@ import pandas as pd
 from pathlib import Path
 
 class DataLoader:
-    """Handle loading and validating biomarker data"""
+    """Handle loading and validating data"""
     
-    def __init__(self):
+    def __init__(self, app):
+        self.app = app
         self.data = None
         self.file_path = None
     
-    def load_csv(self, file_path):
-        """Load data from CSV file"""
-        try:
-            self.data = pd.read_csv(file_path)
-            self.file_path = file_path
-            self._validate_data()
-            return True, f"Loaded {len(self.data)} samples"
-        except Exception as e:
-            return False, f"Error loading file: {str(e)}"
-    
-    def load_excel(self, file_path):
-        """Load data from Excel file"""
-        try:
-            self.data = pd.read_excel(file_path)
-            self.file_path = file_path
-            self._validate_data()
-            return True, f"Loaded {len(self.data)} samples"
-        except Exception as e:
-            return False, f"Error loading file: {str(e)}"
-    
-    def _validate_data(self):
-        """Validate required columns and data types"""
-        # Check minimum data requirements
-        if len(self.data.columns) == 0:
-            raise ValueError("File contains no columns")
-        if len(self.data) == 0:
-            raise ValueError("File contains no data rows")
-
-        # Basic data cleaning
-        self.data = self.data.dropna(how='all')
+        self.metadata_df = None
+        self.plate_raw_df = None
+        self.plate_id_df = None
         
-    def get_summary(self):
-        """Get data summary statistics"""
-        if self.data is None:
-            return None
-        
-        return {
-            'n_samples': len(self.data),
-            'n_features': len(self.data.columns),
-            'numeric_cols': self.data.select_dtypes(include=['number']).columns.tolist(),
-            'missing_data': self.data.isnull().sum().to_dict()
-        }
-    
-    def get_numeric_data(self):
-        """Get only numeric columns for analysis"""
-        if self.data is None:
-            return None
-        return self.data.select_dtypes(include=['number'])
-
-    def load_metadata(self, file_path):
+    def load_metadata(self, file_path, parser=None):
         """
         Load metadata file (patient demographics, diagnosis, etc.).
 
@@ -68,56 +24,75 @@ class DataLoader:
             Tuple of (success, message)
         """
         try:
+            if parser is None:
+                from .elisa_parser import ELISAParser
+                parser = ELISAParser(self.app)
+                
             # Determine file type and load
             file_path = Path(file_path)
+            self.app.log(f'Loaded Meta Data: {file_path}')  
+
             if file_path.suffix == '.csv':
                 metadata = pd.read_csv(file_path)
+                metadata = parser._parse_sample_metadata(metadata)
             elif file_path.suffix in ['.xlsx', '.xls']:
                 metadata = pd.read_excel(file_path)
+                metadata = parser._parse_sample_metadata(metadata)
             else:
+                self.app.log("Unsupported file format")
                 return False, "Unsupported file format"
 
+            self.app.metadata_df = metadata
+
+            parser.try_merge()
+            
             # Store as separate metadata attribute
             if not hasattr(self, 'metadata'):
                 self.metadata = metadata
             else:
                 self.metadata = metadata
-
+            self.app.log(f"Loaded metadata: {len(metadata)} records as {file_path.suffix.lstrip('.')} format")
             return True, f"Loaded metadata: {len(metadata)} records"
         except Exception as e:
+            self.app.log(f"Error loading metadata: {str(e)}")
             return False, f"Error loading metadata: {str(e)}"
 
-    def merge_with_metadata(self, elisa_data: pd.DataFrame,
-                           sample_id_col: str = 'TM',
-                           elisa_id_col: str = 'sample_id'):
+    def load_plate_id(self, file_path, parser=None):
         """
-        Merge ELISA results with metadata based on sample ID.
-
-        Args:
-            elisa_data: DataFrame with ELISA results (must have sample_id column)
-            sample_id_col: Column name in metadata for sample IDs
-            elisa_id_col: Column name in elisa_data for sample IDs
-
+        Load Plate ID file reader.
+        Expected format: 8 rows (A-H) x 12 columns (1-12) with sample IDs.
+        
         Returns:
-            Merged DataFrame with both ELISA results and metadata
+            Tuple of (success, message, parsed_data_dict)
         """
-        if not hasattr(self, 'metadata') or self.metadata is None:
-            raise ValueError("Metadata must be loaded first using load_metadata()")
+        try:
+            if parser is None:
+                from .elisa_parser import ELISAParser
+                parser = ELISAParser(self.app)
 
-        # Merge on sample ID
-        merged = pd.merge(
-            elisa_data,
-            self.metadata,
-            left_on=elisa_id_col,
-            right_on=sample_id_col,
-            how='left'
-        )
+            file_path = Path(file_path)
+            self.app.log(f"Loaded Plate ID file: {file_path}")
+            
+            # Parse based on file type
+            if file_path.suffix == '.csv':
+                parsed_data = parser.parse_id_csv(str(file_path))
+            elif file_path.suffix in ['.xlsx', '.xls']:
+                parsed_data = parser.parse_id_excel(str(file_path))
+            else:
+                return False, "Unsupported file format", None
+            
+            self.app.plate_id_df = parsed_data
 
-        # Store merged data
-        self.data = merged
+            parser.try_merge()
 
-        return merged
+            self.app.log(f"Plate ID file loaded successfully as {file_path.suffix.lstrip('.')} format")
+            return True, "Plate ID file loaded successfully", parsed_data
 
+        except Exception as e:
+            err = f"Error loading Plate ID: {str(e)}"
+            self.app.log(err)
+            return False, err, None
+        
     def load_elisa_raw(self, file_path, parser=None):
         """
         Load raw ELISA plate reader data.
@@ -132,19 +107,26 @@ class DataLoader:
         try:
             if parser is None:
                 from .elisa_parser import ELISAParser
-                parser = ELISAParser()
+                parser = ELISAParser(self.app)
 
             file_path = Path(file_path)
-
+            self.app.log(f"Loaded Raw Data file: {file_path}")
+            
             # Parse based on file type
             if file_path.suffix == '.csv':
-                parsed_data = parser.parse_csv(str(file_path))
+                parsed_data = parser.parse_raw_csv(str(file_path))
             elif file_path.suffix in ['.xlsx', '.xls']:
-                parsed_data = parser.parse_excel(str(file_path))
+                parsed_data = parser.parse_raw_excel(str(file_path))
             else:
                 return False, "Unsupported file format", None
+            
+            self.app.plate_raw_df = parsed_data
+            parser.try_merge()
 
+            self.app.log(f"Raw ELISA data loaded successfully as {file_path.suffix.lstrip('.')} format")
             return True, "Raw ELISA data loaded successfully", parsed_data
 
         except Exception as e:
-            return False, f"Error loading ELISA data: {str(e)}", None
+            err = f"Error loading ELISA data: {str(e)}"
+            self.app.log(err)
+            return False, err, None

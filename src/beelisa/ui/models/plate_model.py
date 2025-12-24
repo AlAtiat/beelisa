@@ -1,6 +1,6 @@
 from enum import Enum
 from collections import OrderedDict
-
+import pandas as pd
 
 class WellType(Enum):
     """Well type enumeration for 96-well plate."""
@@ -15,7 +15,8 @@ class WellType(Enum):
 class PlateModel:
     """Framework-agnostic state management for 96-well plate."""
 
-    def __init__(self, rows=8, cols=12):
+    def __init__(self, app, rows=8, cols=12):
+        self.app = app
         self.rows = rows
         self.cols = cols
         self.padding = 5
@@ -165,8 +166,8 @@ class PlateModel:
         })
         self.selection_history[(row, col)] = index
 
-
-
+        self.plate_design()
+                    
     def get_selection_order_for_type(self, well_type):
         """Get ordered list of wells for a specific type."""
         return [s for s in self.selection_order if s['type'] == well_type]
@@ -183,7 +184,6 @@ class PlateModel:
     def remove_from_selection_order(self, row, col):
         """Remove a well from selection order."""
         if (row, col) in self.selection_history:
-            old_index = self.selection_history[(row, col)]
             self.selection_order = [s for s in self.selection_order if s['coords'] != (row, col)]
             del self.selection_history[(row, col)]
 
@@ -241,19 +241,47 @@ class PlateModel:
 
         return counts
 
-    def to_dict(self):
-        """Export plate configuration to dictionary."""
-        return {
-            'grid': [[well.value for well in row] for row in self.grid],
-            'active_key': self.active_key.value
-        }
+    # def to_dict(self):
+    #     """Export plate configuration to dictionary."""
+    #     return {
+    #         'grid': [[well.value for well in row] for row in self.grid],
+    #         'active_key': self.active_key.value,
+    #     }
 
-    def from_dict(self, config):
-        """Load plate configuration from dictionary."""
-        self.grid = [[WellType(well) for well in row] for row in config['grid']]
-        self.active_key = WellType(config['active_key'])
-        self._well_count_cache = {well_type: 0 for well_type in WellType}
-        self._initialize_well_counts()
+    def plate_design(self, key=None):
+        plate_order = {}
+        well_type_counter = {t: 0 for t in WellType}
+        
+        for well in self.selection_order:
+            t = well["type"]
+            rc = well["coords"]
+            plate_order[rc] = well_type_counter[t]
+            well_type_counter[t] += 1
+                        
+        result = []
+        for row in range(self.rows):
+            for col in range(self.cols):
+                t = self.grid[row][col]
+                if key is not None and t != key:
+                    continue
+                well_id = f"{chr(65 + row)}{col + 1:02d}"
+                order = plate_order.get((row, col))  # None if not selected/ordered
+
+                result.append({
+                    "well_id": well_id,
+                    "well_type": t.name,   # e.g. "CALIBRANT"
+                    "order": order         # e.g. 0,1,2... within that type
+                })
+        self.app.plate_design_df = pd.DataFrame(result)
+        
+        return result
+                        
+    # def from_dict(self, config):
+    #     """Load plate configuration from dictionary."""
+    #     self.grid = [[WellType(well) for well in row] for row in config['grid']]
+    #     self.active_key = WellType(config['active_key'])
+    #     self._well_count_cache = {well_type: 0 for well_type in WellType}
+    #     self._initialize_well_counts()
 
     def _initialize_well_counts(self):
         """Initialize well count cache by scanning grid once."""

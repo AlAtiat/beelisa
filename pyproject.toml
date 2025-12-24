@@ -21,6 +21,9 @@ test_sources = [
 ]
 
 requires = [
+    "pandas",
+    "openpyxl",
+    "numpy",
 ]
 test_requires = [
     "pytest",

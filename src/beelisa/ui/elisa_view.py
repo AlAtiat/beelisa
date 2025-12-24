@@ -101,6 +101,20 @@ class Mainboard:
         raw_btn_box.add(raw_btn, self.raw_status)
         load_box.add(raw_btn_box)
 
+        # Plate ID button
+        plate_id_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        plate_id_btn = toga.Button(
+            'Load Plate ID',
+            on_press=self.load_plate_id,
+            style=Pack(margin=5, flex=1)
+        )
+        self.plate_id_status = toga.Label(
+        'No Plate Sample ID loaded',
+        style=Pack(margin=5, flex=1)
+        )
+        plate_id_btn_box.add(plate_id_btn, self.plate_id_status)
+        load_box.add(plate_id_btn_box)
+        
         # Metadata button
         meta_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
         meta_btn = toga.Button(
@@ -154,12 +168,38 @@ class Mainboard:
             if file_path:
                 from ..data.loader import DataLoader
 
-                loader = DataLoader()
+                loader = DataLoader(self.app)
                 success, message, parsed_data = loader.load_elisa_raw(file_path)
 
                 if success:
                     self.raw_data = parsed_data
                     self.raw_status.text = f"Loaded: {file_path.name}"
+                    await self.app.main_window.dialog(toga.InfoDialog('Success', message))
+                else:
+                    await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
+
+        except Exception as e:
+            await self.app.main_window.dialog(toga.ErrorDialog('Error', str(e)))
+        
+    async def load_plate_id(self, widget):
+        """ Load Plate ID for each plate to match the same Raw ELISA Data."""
+        try:
+            file_path = await self.app.main_window.dialog(
+                toga.OpenFileDialog(
+                    title="Open Plate ID File",
+                    file_types=['csv', 'xlsx', 'xls']
+                )
+            )
+        
+            if file_path:
+                from ..data.loader import DataLoader
+                
+                loader = DataLoader(self.app)
+                success, message, plate_loaded_ids = loader.load_plate_id(file_path)
+
+                if success:
+                    self.plate_loaded_ids_data = plate_loaded_ids
+                    self.plate_id_status.text = f"Loaded: {file_path.name}"
                     await self.app.main_window.dialog(toga.InfoDialog('Success', message))
                 else:
                     await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
@@ -180,7 +220,7 @@ class Mainboard:
             if file_path:
                 from ..data.loader import DataLoader
 
-                loader = DataLoader()
+                loader = DataLoader(self.app)
                 success, message = loader.load_metadata(file_path)
 
                 if success:
