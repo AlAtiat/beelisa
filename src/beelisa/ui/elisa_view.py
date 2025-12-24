@@ -137,19 +137,6 @@ class Mainboard:
         # )
         # load_box.add(process_btn)
 
-        # Export button
-        # export_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        # export_btn = toga.Button(
-        #     'Export Results',
-        #     on_press=self.export_results,
-        #     style=Pack(margin=5, flex=1)
-        # )
-        # self.export_status = toga.Label(
-        #     'No Data to export',
-        #     style=Pack(margin=5, flex=1)
-        # )
-        # export_btn_box.add(export_btn, self.export_status)
-        # load_box.add(export_btn_box)
 
         return load_box
 

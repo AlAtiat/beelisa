@@ -2,6 +2,8 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 from .data import ELISAParser
+from .data import DataViewer
+
 class BeELISA(toga.App):
     def startup(self):
         """
@@ -14,8 +16,12 @@ class BeELISA(toga.App):
         self.metadata_df = None
         self.plate_raw_df = None
         self.plate_id_df = None
-        self.parser = ELISAParser(self)
         self.plate_design_df = None
+        self.connected_df = None
+        
+        self.parser = ELISAParser(self)
+        self.viewer = DataViewer(self)
+        
         
         # Main window title
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -31,7 +37,7 @@ class BeELISA(toga.App):
         
         #  tabs using the content.append() method
         self.content_tabs.content.append("ELISA Analysis", self.create_elisa_view())
-        # self.content_tabs.content.append("Data View", self.create_data_view())
+        self.content_tabs.content.append("Data View", self.create_data_view())
         
         main_box.add(self.content_tabs)
         
@@ -65,11 +71,12 @@ class BeELISA(toga.App):
         view = Mainboard(self)
         return view.create_layout()
 
-    # def create_data_view(self):
-    #     """Create data viewing interface"""
-    #     from .ui.data_view import DataView
-    #     view = DataView(self)
-    #     return view.create_layout()
+    # View migrated data
+    def create_data_view(self):
+        """Create data viewing interface"""
+        from .ui.data_view import DataView
+        self.view = DataView(self)
+        return self.view.create_layout()
 
     
     

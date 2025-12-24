@@ -178,7 +178,7 @@ class ELISAParser:
 
         return well_ids
     
-    # this is only custome to our use shouldnt be removed before deployment
+    # this is only custome to our use. should be removed before deployment
     def _base_sample_id(self, value):
         if value is None or pd.isna(value):
             return None
@@ -285,17 +285,21 @@ class ELISAParser:
             on="well_id",
             how="left"
         )
-        self.app.log(mapped_df.to_string())
 
 
         self.app.connected_df = mapped_df.merge(
             metadata_df,
             on="sample_id",
             how="left",
-            indicator=False,
+            indicator=True,
         )
-        self.app.log(self.app.plate_design_df.head().to_string(index=False))
-        self.app.log(self.app.connected_df.head(10).to_string(index=False))
+        
+        self.app.log("Data View Available")
+                
+        if getattr(self.app, "viewer", None) is not None:
+            self.app.viewer.update_table()
+            self.app.viewer.update_summary()
+                
         return self.app.connected_df
 
     def identify_replicates(self, sample_df: pd.DataFrame) -> pd.DataFrame:

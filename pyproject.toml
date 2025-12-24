@@ -12,6 +12,7 @@ author_email = "aun@alatiat.com"
 formal_name = "BeELISA"
 description = "BeELISA is a Python-based ELISA analysis tool developed as part of this Bachelor thesis."
 long_description = """More details about the app should go here.
+icon = "src/beelisa/resources/icons/beeilsa"
 """
 sources = [
     "src/beelisa",
