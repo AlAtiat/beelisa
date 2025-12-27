@@ -9,6 +9,8 @@ class BeELISA(toga.App):
         """
         Construct and show the Toga application.
         """
+        # toga.Widget.DEBUG_LAYOUT_ENABLED = True
+        
         self.status_label = None
         self.log_window = None
         self.log_textbox = None
@@ -21,7 +23,6 @@ class BeELISA(toga.App):
         
         self.parser = ELISAParser(self)
         self.viewer = DataViewer(self)
-        
         
         # Main window title
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -85,7 +86,6 @@ class BeELISA(toga.App):
     
     def show_logs(self, widget=None):
         """ Open Logs Window """
-        
         def build():
             self.log_window = toga.Window(title="BeELISA Logging Window")
             self.log_textbox = toga.MultilineTextInput(
@@ -97,7 +97,7 @@ class BeELISA(toga.App):
             box.add(self.log_textbox)
         
             self.log_window.content = box
-            
+
         if self.log_window is None:
             build()
         try:
@@ -108,6 +108,8 @@ class BeELISA(toga.App):
 
             
     def log(self, message: str):
+        
+
         status = getattr(self, "status_label", None)
         if status is not None:
             status.text = message

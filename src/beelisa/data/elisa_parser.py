@@ -302,49 +302,49 @@ class ELISAParser:
                 
         return self.app.connected_df
 
-    def identify_replicates(self, sample_df: pd.DataFrame) -> pd.DataFrame:
-        """
-        Group replicate wells and calculate statistics.
+    # def identify_replicates(self, sample_df: pd.DataFrame) -> pd.DataFrame:
+    #     """
+    #     Group replicate wells and calculate statistics.
 
-        Args:
-            sample_df: DataFrame with sample_id, well_id, od_value
+    #     Args:
+    #         sample_df: DataFrame with sample_id, well_id, od_value
 
-        Returns:
-            DataFrame with: sample_id, mean_od, std_od, cv_percent, n_replicates
-        """
-        grouped = sample_df.groupby('sample_id')['od_value'].agg([
-            ('mean_od', 'mean'),
-            ('std_od', 'std'),
-            ('n_replicates', 'count')
-        ]).reset_index()
+    #     Returns:
+    #         DataFrame with: sample_id, mean_od, std_od, cv_percent, n_replicates
+    #     """
+    #     grouped = sample_df.groupby('sample_id')['od_value'].agg([
+    #         ('mean_od', 'mean'),
+    #         ('std_od', 'std'),
+    #         ('n_replicates', 'count')
+    #     ]).reset_index()
 
-        # Calculate coefficient of variation (CV%)
-        grouped['cv_percent'] = (grouped['std_od'] / grouped['mean_od']) * 100
+    #     # Calculate coefficient of variation (CV%)
+    #     grouped['cv_percent'] = (grouped['std_od'] / grouped['mean_od']) * 100
 
-        # Flag high CV samples (>20% is typically concerning)
-        grouped['high_cv'] = grouped['cv_percent'] > 20
+    #     # Flag high CV samples (>20% is typically concerning)
+    #     grouped['high_cv'] = grouped['cv_percent'] > 20
 
-        return grouped
+    #     return grouped
 
-    def identify_blanks(self, sample_df: pd.DataFrame,
-                       blank_identifier: str = 'Blank') -> Tuple[float, int]:
-        """
-        Identify and calculate mean blank OD.
+    # def identify_blanks(self, sample_df: pd.DataFrame,
+    #                    blank_identifier: str = 'Blank') -> Tuple[float, int]:
+    #     """
+    #     Identify and calculate mean blank OD.
 
-        Args:
-            sample_df: DataFrame with sample_id and od_value
-            blank_identifier: String to identify blank wells
+    #     Args:
+    #         sample_df: DataFrame with sample_id and od_value
+    #         blank_identifier: String to identify blank wells
 
-        Returns:
-            Tuple of (mean_blank_od, n_blanks)
-        """
-        blanks = sample_df[sample_df['sample_id'].str.contains(
-            blank_identifier, case=False, na=False
-        )]
+    #     Returns:
+    #         Tuple of (mean_blank_od, n_blanks)
+    #     """
+    #     blanks = sample_df[sample_df['sample_id'].str.contains(
+    #         blank_identifier, case=False, na=False
+    #     )]
 
-        if len(blanks) > 0:
-            mean_blank = blanks['od_value'].mean()
-            n_blanks = len(blanks)
-            return mean_blank, n_blanks
-        else:
-            return 0.0, 0
+    #     if len(blanks) > 0:
+    #         mean_blank = blanks['od_value'].mean()
+    #         n_blanks = len(blanks)
+    #         return mean_blank, n_blanks
+    #     else:
+    #         return 0.0, 0

@@ -288,7 +288,8 @@ class PlateModel:
         for row in range(self.rows):
             for col in range(self.cols):
                 self._well_count_cache[self.grid[row][col]] += 1
-
+        self.plate_design()
+        
     def _update_well_count(self, old_type, new_type):
         """Incrementally update well counts when a well changes."""
         if old_type != new_type:
