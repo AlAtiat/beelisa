@@ -15,6 +15,9 @@ class Mainboard:
         self.plate_image = None
         self.curve_image = None
         self.plate_widget = None
+        self.pending_raw_data = None
+        self.pending_raw_filename = None
+        self.plates_container = None
 
     def create_layout(self):
         """Create ELISA analysis view layout."""
@@ -48,7 +51,7 @@ class Mainboard:
         seperation_headline = toga.Box(
             children=[
                 toga.Label(
-                    'Well Plate Design',
+                    'WELL PLATE DESIGN',
                     style=Pack(margin=1, font_size=16, font_weight='bold')
                 ),
                 toga.Divider(),
@@ -76,44 +79,18 @@ class Mainboard:
         seperation_headline = toga.Box(
             children=[
                 toga.Label(
-                    'ELISA Data Analysis',
+                    'ELISA DATA IMPORTING',
                     style=Pack(margin=1, font_size=16, font_weight='bold')
                 ),
-                toga.Divider(),            
+                toga.Divider(),
             ],
             direction=COLUMN,
             flex=0.1,
             margin=1
         )
         load_box.add(seperation_headline)
-
-        # Raw data button
-        raw_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        raw_btn = toga.Button(
-            'Load Raw ELISA Data',
-            on_press=self.load_raw_data,
-            style=Pack(margin=5, flex=1)
-        )
-        self.raw_status = toga.Label(
-            'No raw data loaded',
-            style=Pack(margin=5, flex=1)
-        )
-        raw_btn_box.add(raw_btn, self.raw_status)
-        load_box.add(raw_btn_box)
-
-        # Plate ID button
-        plate_id_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        plate_id_btn = toga.Button(
-            'Load Plate ID',
-            on_press=self.load_plate_id,
-            style=Pack(margin=5, flex=1)
-        )
-        self.plate_id_status = toga.Label(
-        'No Plate Sample ID loaded',
-        style=Pack(margin=5, flex=1)
-        )
-        plate_id_btn_box.add(plate_id_btn, self.plate_id_status)
-        load_box.add(plate_id_btn_box)
+        
+        
         
         # Metadata button
         meta_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
@@ -123,11 +100,100 @@ class Mainboard:
             style=Pack(margin=5, flex=1)
         )
         self.meta_status = toga.Label(
-            'No metadata loaded',
+            'No Metadata Loaded',
             style=Pack(margin=5, flex=1)
         )
         meta_btn_box.add(meta_btn, self.meta_status)
-        load_box.add(meta_btn_box)
+        meta_data_load_button = meta_btn_box
+        
+        metadata_block = toga.Box(
+            children=[
+                toga.Label(
+                    'LOAD METADATA: ',
+                    style=Pack(margin=5, font_weight='bold', background_color="#DBC5C5D1")
+                ),
+                toga.Divider(style=Pack(width=350, flex=1, margin=5)),
+                meta_data_load_button,
+                toga.Divider(),
+
+                
+            ],
+            direction=COLUMN,
+            flex=1,
+            margin=5
+        )
+        load_box.add(metadata_block)
+
+
+        # Raw data and plate id data importing section
+        plates_data_content = toga.Box(style=Pack(direction=COLUMN, margin=5, flex=1))
+
+        # Raw data button
+        raw_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        raw_btn = toga.Button(
+            'Load Raw ELISA Data',
+            on_press=self.load_raw_data,
+            style=Pack(margin=5, flex=1)
+        )
+        self.raw_status = toga.Label(
+            'No Raw Data Loaded',
+            style=Pack(margin=5, flex=1)
+        )
+        raw_btn_box.add(raw_btn, self.raw_status)
+        plates_data_content.add(raw_btn_box)
+
+        # Plate ID button
+        plate_id_btn_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        plate_id_btn = toga.Button(
+            'Load Plate Sample ID',
+            on_press=self.load_plate_id,
+            style=Pack(margin=5, flex=1)
+        )
+        self.plate_id_status = toga.Label(
+        'No Plate Sample ID loaded',
+        style=Pack(margin=5, flex=1)
+        )
+        plate_id_btn_box.add(plate_id_btn, self.plate_id_status)
+        plates_data_content.add(plate_id_btn_box)
+        
+        
+        # Loaded Plates section
+        plates_data_content_uploaded = toga.Box(style=Pack(direction=COLUMN, margin=5, flex=1))
+
+        plates_section_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
+        plates_header = toga.Label('Uploaded Data (RAW +  PLATE SAMPLE ID MERGED)', style=Pack(margin=5, font_weight='bold', background_color="#DBC5C5D1"))
+
+        # ScrollContainer to hold plate entries
+        self.plates_container = toga.Box(style=Pack(direction=COLUMN))
+        plates_scroll = toga.ScrollContainer(
+            content=self.plates_container,
+            style=Pack(height=150, margin=5, flex=0.1)
+        )
+        plates_section_box.add(plates_scroll)
+        plates_data_content_uploaded.add(plates_section_box)
+        
+        
+        
+        plates_data_block = toga.Box(
+            children=[
+                toga.Label(
+                    'LOAD (RAW/PLATE SAMPLE ID) DATA: ',
+                    style=Pack(margin=5, font_weight='bold' , background_color="#DBC5C5D1")
+                ),
+                toga.Divider(style=Pack(width=350, flex=1, margin=5)),
+                plates_data_content,
+                toga.Divider(),
+                plates_header,
+                toga.Divider(style=Pack(width=350, flex=1, margin=5)),
+                plates_data_content_uploaded
+
+                
+            ],
+            direction=COLUMN,
+            flex=1,
+            margin=5
+        )
+        load_box.add(plates_data_block)
 
         # # Process button
         # process_btn = toga.Button(
@@ -159,9 +225,12 @@ class Mainboard:
                 success, message, parsed_data = loader.load_elisa_raw(file_path)
 
                 if success:
-                    self.raw_data = parsed_data
-                    self.raw_status.text = f"Loaded: {file_path.name}"
-                    await self.app.main_window.dialog(toga.InfoDialog('Success', message))
+                    # Store as pending
+                    self.pending_raw_data = parsed_data
+                    self.pending_raw_filename = Path(file_path).stem
+                    self.raw_status.text = f"Pending: {Path(file_path).name}"
+                    await self.app.main_window.dialog(toga.InfoDialog('Success',
+                        "Raw data loaded. Now load the corresponding Plate ID file."))
                 else:
                     await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
 
@@ -177,17 +246,35 @@ class Mainboard:
                     file_types=['csv', 'xlsx', 'xls']
                 )
             )
-        
+
             if file_path:
+                # Check if raw data is pending
+                if self.pending_raw_data is None:
+                    await self.app.main_window.dialog(toga.ErrorDialog('Error',
+                        "Please load raw data first"))
+                    return
+
                 from ..data.loader import DataLoader
-                
+
                 loader = DataLoader(self.app)
-                success, message, plate_loaded_ids = loader.load_plate_id(file_path)
+                success, message, plate_id_df = loader.load_plate_id(file_path)
 
                 if success:
-                    self.plate_loaded_ids_data = plate_loaded_ids
-                    self.plate_id_status.text = f"Loaded: {file_path.name}"
-                    await self.app.main_window.dialog(toga.InfoDialog('Success', message))
+                    # Create plate pair
+                    plate_name = self.pending_raw_filename or f"Plate_{len(self.app.plates)+1}"
+                    self.app.add_plate(plate_name, self.pending_raw_data, plate_id_df)
+
+                    # Clear pending data
+                    self.pending_raw_data = None
+                    self.pending_raw_filename = None
+
+                    # Update UI
+                    self.raw_status.text = "No raw data loaded"
+                    self.plate_id_status.text = "No Plate Sample ID loaded"
+                    self.refresh_plates_list()
+
+                    await self.app.main_window.dialog(toga.InfoDialog('Success',
+                        f"Plate pair added: {plate_name}\nTotal plates: {len(self.app.plates)}"))
                 else:
                     await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
 
@@ -220,4 +307,63 @@ class Mainboard:
         except Exception as e:
             await self.app.main_window.dialog(toga.ErrorDialog('Error', str(e)))
 
- 
+    def refresh_plates_list(self):
+        """Refresh the plates list UI"""
+        self.plates_container.clear()
+
+        for i, plate in enumerate(self.app.plates):
+            row = self.create_plate_row(i, plate)
+            self.plates_container.add(row)
+
+    def create_plate_row(self, index, plate):
+        """Create a UI row for a single plate"""
+        
+        row_box = toga.Box(style=Pack(direction=COLUMN, margin=2, flex=1))
+
+        # Editable plate name
+        name_input = toga.TextInput(
+            value=plate["name"],
+            on_change=lambda widget, idx=index: self.on_plate_name_change(widget, idx),
+            style=Pack(flex=1, margin=2)
+        )
+
+        # Remove button
+        remove_btn = toga.Button(
+            "Remove",
+            on_press=lambda widget, idx=index: self.on_remove_plate(widget, idx),
+            style=Pack(margin=2, width=80, flex=1)
+        )
+
+        row_box.add(name_input)
+        row_box.add(remove_btn)
+
+        # # Seperated uploaded files
+        # uploaded_plates_block = toga.Box(
+        #     children=[
+        #         name_input,
+        #         remove_btn,
+        #         toga.Divider(),
+
+                
+        #     ],
+        #     direction=ROW,
+        #     flex=0.1,
+        #     margin=5
+        # )
+        # row_box.add(uploaded_plates_block)
+        
+        card = toga.Box(style=Pack(direction=COLUMN, margin=5))
+        card.add(row_box)
+        card.add(toga.Divider())
+        return card
+    
+    
+    def on_plate_name_change(self, widget, index):
+        """Handle plate name edit"""
+        self.app.update_plate_name(index, widget.value)
+
+    def on_remove_plate(self, widget, index):
+        """Handle plate removal"""
+        self.app.remove_plate(index)
+        self.refresh_plates_list()
+

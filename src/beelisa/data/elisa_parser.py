@@ -228,78 +228,101 @@ class ELISAParser:
 
     def try_merge(self):
         """ Tries to merge and connect all data when loaded to run the mapping"""
-        
-        if self.app.plate_raw_df is None:
-            self.app.log("Please Load Raw Data")
-            return None
-        if self.app.plate_id_df is None:
-            self.app.log("Please Load Plate Sample ID")
+
+        if len(self.app.plates) == 0:
+            self.app.log("Please load at least one plate (Raw Data + Plate ID)")
             return None
         if self.app.metadata_df is None:
-            self.app.log("Please Load your Metadata")
+            self.app.log("Please load your Metadata")
             return None
-        connected_df = self.map_wells_to_samples(self.app.metadata_df, self.app.plate_raw_df, self.app.plate_id_df)
+        if self.app.plate_design_df is None:
+            self.app.log("Please create a Plate Design first")
+            return None
+
+        self.app.log(f"Merging {len(self.app.plates)} plate(s) with metadata...")
+
+        connected_df = self.map_wells_to_samples(
+            self.app.metadata_df,
+            self.app.plates
+        )
         return connected_df
     
-    def map_wells_to_samples(self, metadata_df,
-                            plate_raw_df: List[float],
-                            plate_id_df: List[str]) -> pd.DataFrame:
+    def map_wells_to_samples(self, metadata_df, plates) -> pd.DataFrame:
         """
-        Map well positions to sample IDs and create sample-level DataFrame.
+        Map well positions to sample IDs for multiple plates.
 
         Args:
-            well_sample_mapping: Dict mapping well IDs to sample IDs (e.g., {'A1': '202/1', 'A2': '202/1'})
-            od_values: List of OD measurements
-            well_ids: List of well IDs
+            metadata_df: Patient/sample metadata
+            plates: List of plate dictionaries with keys: name, raw_df, id_df
 
         Returns:
-            DataFrame with columns: sample_id, well_id, od_value
+            DataFrame with all plates concatenated, including plate_name column
         """
-        data = []
+        all_plate_dfs = []
 
-        for row in plate_raw_df.index:
-            for col in plate_raw_df.columns:
-                od_value = plate_raw_df.loc[row, col]
-                sample_id = plate_id_df.loc[row, col]
-                
-                
-                if pd.isna(sample_id):
-                    sample_id = None
-                else:
-                    sample_id = str(sample_id).strip()
-                    sample_id = sample_id.replace(".0", "") 
-                    
-                    
-                well_id= f"{row}{int(col):02d}"
-                
-                data.append({
-                    "well_id": well_id,
-                    "sample_id": sample_id,
-                    "od_value": od_value
-                })
-        mapped_df = pd.DataFrame(data)
-        
-        plate_design = self.app.plate_design_df
-        mapped_df = mapped_df.merge(
-            plate_design,
-            on="well_id",
-            how="left"
-        )
+        # Process each plate
+        for plate in plates:
+            plate_name = plate["name"]
+            plate_raw_df = plate["raw_df"]
+            plate_id_df = plate["id_df"]
 
+            data = []
 
-        self.app.connected_df = mapped_df.merge(
-            metadata_df,
-            on="sample_id",
-            how="left",
-            indicator=True,
-        )
-        
+            # Iterate through 8x12 grid
+            for row in plate_raw_df.index:
+                for col in plate_raw_df.columns:
+                    od_value = plate_raw_df.loc[row, col]
+                    sample_id = plate_id_df.loc[row, col]
+
+                    # Clean sample_id
+                    if pd.isna(sample_id):
+                        sample_id = None
+                    else:
+                        sample_id = str(sample_id).strip()
+                        sample_id = sample_id.replace(".0", "")
+
+                    well_id = f"{row}{int(col):02d}"
+
+                    data.append({
+                        "plate_name": plate_name,
+                        "well_id": well_id,
+                        "sample_id": sample_id,
+                        "od_value": od_value
+                    })
+
+            # Create dataframe for this plate (96 rows)
+            mapped_df = pd.DataFrame(data)
+
+            # Merge with plate design
+            plate_design = self.app.plate_design_df
+            if plate_design is not None:
+                mapped_df = mapped_df.merge(
+                    plate_design,
+                    on="well_id",
+                    how="left"
+                )
+
+            # Merge with metadata
+            plate_with_metadata = mapped_df.merge(
+                metadata_df,
+                on="sample_id",
+                how="left",
+                indicator=True
+            )
+
+            all_plate_dfs.append(plate_with_metadata)
+
+        # Concatenate all plates into one dataframe
+        self.app.connected_df = pd.concat(all_plate_dfs, ignore_index=True)
+
+        self.app.log(f"Merged {len(plates)} plate(s) with {len(self.app.connected_df)} total wells")
         self.app.log("Data View Available")
-                
-        if getattr(self.app, "viewer", None) is not None:
+
+        # Update viewer if available
+        if hasattr(self.app, "viewer") and self.app.viewer is not None:
             self.app.viewer.update_table()
             self.app.viewer.update_summary()
-                
+
         return self.app.connected_df
 
     # def identify_replicates(self, sample_df: pd.DataFrame) -> pd.DataFrame:

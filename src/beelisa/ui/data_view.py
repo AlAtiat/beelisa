@@ -47,8 +47,13 @@ class DataView:
             on_press=self.app.viewer.export_data,
             style=Pack(margin=5)
         )
+        refresh_btn = toga.Button(
+            'Refresh Data',
+            on_press=self.app.viewer.refresh_data,
+            style=Pack(margin=5)
+        )
         
-        controls.add(export_btn)
+        controls.add(export_btn, refresh_btn)
         return controls
     
     def create_summary(self):

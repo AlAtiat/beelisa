@@ -36,6 +36,17 @@ class DataViewer:
 
         except Exception as e:
             await self.app.main_window.dialog(toga.ErrorDialog('Error', f'Export failed: {str(e)}'))
+            
+    async def refresh_data(self, widget):
+        """Refresh current data"""
+        
+        try:
+
+            
+            self.app.parser.try_merge()
+
+        except Exception as e:
+            await self.app.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
     
     def update_table(self):
         """Update table with new data"""

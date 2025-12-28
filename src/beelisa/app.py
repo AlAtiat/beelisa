@@ -16,8 +16,7 @@ class BeELISA(toga.App):
         self.log_textbox = None
         
         self.metadata_df = None
-        self.plate_raw_df = None
-        self.plate_id_df = None
+        self.plates = []  # List of plate dictionaries: {"name": str, "raw_df": DataFrame, "id_df": DataFrame}
         self.plate_design_df = None
         self.connected_df = None
         
@@ -62,9 +61,26 @@ class BeELISA(toga.App):
         
         self.main_window.content = main_box
         self.main_window.show()
-        
-        
-    
+
+    # Plate management methods
+    def add_plate(self, name, raw_df, id_df):
+        """Add a new plate to the collection"""
+        self.plates.append({
+            "name": name,
+            "raw_df": raw_df,
+            "id_df": id_df
+        })
+
+    def remove_plate(self, index):
+        """Remove plate at index"""
+        if 0 <= index < len(self.plates):
+            del self.plates[index]
+
+    def update_plate_name(self, index, new_name):
+        """Update plate name"""
+        if 0 <= index < len(self.plates):
+            self.plates[index]["name"] = new_name
+
     # View creation methods
     def create_elisa_view(self):
         """Create ELISA analysis interface"""

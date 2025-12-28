@@ -80,9 +80,6 @@ class DataLoader:
                 parsed_data = parser.parse_id_excel(str(file_path))
             else:
                 return False, "Unsupported file format", None
-            
-            self.app.plate_id_df = parsed_data
-
             parser.try_merge()
 
             self.app.log(f"Plate ID file loaded successfully as {file_path.suffix.lstrip('.')} format")
@@ -119,8 +116,6 @@ class DataLoader:
                 parsed_data = parser.parse_raw_excel(str(file_path))
             else:
                 return False, "Unsupported file format", None
-            
-            self.app.plate_raw_df = parsed_data
             parser.try_merge()
 
             self.app.log(f"Raw ELISA data loaded successfully as {file_path.suffix.lstrip('.')} format")
