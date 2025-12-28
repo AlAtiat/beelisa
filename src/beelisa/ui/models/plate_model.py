@@ -19,7 +19,7 @@ class PlateModel:
         self.app = app
         self.rows = rows
         self.cols = cols
-        self.padding = 5
+        self.margin = 5
         self.show_labels = True
         self.show_well_labels = True
         self.show_legend = False

@@ -63,12 +63,14 @@ class BeELISA(toga.App):
         self.main_window.show()
 
     # Plate management methods
-    def add_plate(self, name, raw_df, id_df):
+    def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):
         """Add a new plate to the collection"""
         self.plates.append({
             "name": name,
             "raw_df": raw_df,
-            "id_df": id_df
+            "id_df": id_df,
+            "raw_filename": raw_filename,
+            "plate_id_filename": plate_id_filename
         })
 
     def remove_plate(self, index):

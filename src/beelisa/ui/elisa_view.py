@@ -17,6 +17,7 @@ class Mainboard:
         self.plate_widget = None
         self.pending_raw_data = None
         self.pending_raw_filename = None
+        self.pending_plate_id_filename = None
         self.plates_container = None
 
     def create_layout(self):
@@ -227,7 +228,7 @@ class Mainboard:
                 if success:
                     # Store as pending
                     self.pending_raw_data = parsed_data
-                    self.pending_raw_filename = Path(file_path).stem
+                    self.pending_raw_filename = Path(file_path).name
                     self.raw_status.text = f"Pending: {Path(file_path).name}"
                     await self.app.main_window.dialog(toga.InfoDialog('Success',
                         "Raw data loaded. Now load the corresponding Plate ID file."))
@@ -260,13 +261,23 @@ class Mainboard:
                 success, message, plate_id_df = loader.load_plate_id(file_path)
 
                 if success:
+                    # Store plate ID filename
+                    self.pending_plate_id_filename = Path(file_path).name
+
                     # Create plate pair
                     plate_name = self.pending_raw_filename or f"Plate_{len(self.app.plates)+1}"
-                    self.app.add_plate(plate_name, self.pending_raw_data, plate_id_df)
+                    self.app.add_plate(
+                        plate_name,
+                        self.pending_raw_data,
+                        plate_id_df,
+                        raw_filename=self.pending_raw_filename,
+                        plate_id_filename=self.pending_plate_id_filename
+                    )
 
                     # Clear pending data
                     self.pending_raw_data = None
                     self.pending_raw_filename = None
+                    self.pending_plate_id_filename = None
 
                     # Update UI
                     self.raw_status.text = "No raw data loaded"
@@ -317,14 +328,24 @@ class Mainboard:
 
     def create_plate_row(self, index, plate):
         """Create a UI row for a single plate"""
-        
-        row_box = toga.Box(style=Pack(direction=COLUMN, margin=2, flex=1))
+
+        row_box = toga.Box(style=Pack(direction=ROW, margin=2, flex=1, width=350))
 
         # Editable plate name
         name_input = toga.TextInput(
             value=plate["name"],
             on_change=lambda widget, idx=index: self.on_plate_name_change(widget, idx),
             style=Pack(flex=1, margin=2)
+        )
+
+        # Display filenames (read-only)
+        raw_file_name = plate.get("raw_filename", "N/A")
+        plate_id_file_name = plate.get("plate_id_filename", "N/A")
+        filename_display = f"{raw_file_name} + {plate_id_file_name}"
+
+        filename_label = toga.Label(
+            filename_display,
+            style=Pack(margin=2, font_size=8)
         )
 
         # Remove button
@@ -353,17 +374,17 @@ class Mainboard:
         # row_box.add(uploaded_plates_block)
         
         card = toga.Box(style=Pack(direction=COLUMN, margin=5))
-        card.add(row_box)
+        card.add(row_box, filename_label)
         card.add(toga.Divider())
         return card
     
     
     def on_plate_name_change(self, widget, index):
-        """Handle plate name edit"""
+        """edit merged plate name"""
         self.app.update_plate_name(index, widget.value)
 
     def on_remove_plate(self, widget, index):
-        """Handle plate removal"""
+        """remove merged plates"""
         self.app.remove_plate(index)
         self.refresh_plates_list()
 
