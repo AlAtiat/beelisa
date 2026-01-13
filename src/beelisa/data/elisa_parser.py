@@ -35,11 +35,13 @@ class ELISAParser:
         
         if df.shape == (8,12):
             plate_raw_df = pd.DataFrame(df.values, index=rows, columns=cols)
-                
+            plate_raw_df = plate_raw_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+
         elif df.shape[0] >= 9 and df.shape[1] >= 13:
             plate_block = df.iloc[1:9, 1:13]
             plate_raw_df = pd.DataFrame(plate_block.values, index=rows, columns=cols)
-            
+            plate_raw_df = plate_raw_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+
 
         else:
             self.app.log("Please make sure the data is formed as a 96 well plate")
@@ -53,7 +55,7 @@ class ELISAParser:
         return plate_raw_df
         
 
-    def parse_raw_excel(self, file_path: str, sheet_name: str = 'Sheet1') -> Dict:
+    def parse_raw_excel(self, file_path: str, sheet_name: int = 0) -> Dict:
         """
         Parse raw ELISA Excel file from plate reader.
 
@@ -73,11 +75,13 @@ class ELISAParser:
         
         if df.shape == (8,12):
             plate_raw_df = pd.DataFrame(df.values, index=rows, columns=cols)
-                
+            plate_raw_df = plate_raw_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+
         elif df.shape[0] >= 9 and df.shape[1] >= 13:
             plate_block = df.iloc[1:9, 1:13]
             plate_raw_df = pd.DataFrame(plate_block.values, index=rows, columns=cols)
-            
+            plate_raw_df = plate_raw_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+
 
         else:
             self.app.log("Please make sure the data is formed as a 96 well plate")
@@ -109,10 +113,14 @@ class ELISAParser:
         
         if df.shape == (8,12):
             plate_id_df = pd.DataFrame(df.values, index=rows, columns=cols)
-                
+            plate_id_df = plate_id_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+            
+
         elif df.shape[0] >= 9 and df.shape[1] >= 13:
             plate_block = df.iloc[1:9, 1:13]
             plate_id_df = pd.DataFrame(plate_block.values, index=rows, columns=cols)
+            plate_id_df = plate_id_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+            
 
         else:
             self.app.log("Please make sure the data is formed as a 96 well plate")
@@ -125,7 +133,7 @@ class ELISAParser:
         return plate_id_df
         
 
-    def parse_id_excel(self, file_path: str, sheet_name: str = 'Sheet1') -> Dict:
+    def parse_id_excel(self, file_path: str, sheet_name: int = 0) -> Dict:
         """
         Parse raw ELISA Excel file from plate reader.
 
@@ -145,11 +153,14 @@ class ELISAParser:
         
         if df.shape == (8,12):
             plate_id_df = pd.DataFrame(df.values, index=rows, columns=cols)
-                
+            plate_id_df = plate_id_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
+            
         elif df.shape[0] >= 9 and df.shape[1] >= 13:
             plate_block = df.iloc[1:9, 1:13]
             plate_id_df = pd.DataFrame(plate_block.values, index=rows, columns=cols)
+            plate_id_df = plate_id_df.replace({"NA": pd.NA, "N/A": pd.NA, "-": pd.NA, "none": pd.NA, "None": pd.NA})
             
+
         else:
             self.app.log("Please make sure the data is formed as a 96 well plate")
             raise ValueError("Unsupported ELISA plate format")
@@ -178,7 +189,7 @@ class ELISAParser:
 
         return well_ids
     
-    # this is only custome to our use. should be removed before deployment
+    # this is only custome to our use. should be removed before deployment (replace)
     def _base_sample_id(self, value):
         if value is None or pd.isna(value):
             return None
@@ -209,18 +220,18 @@ class ELISAParser:
         # drop fully empty rows
         sample_id_df = sample_id_df.dropna(how="all")
 
-        # checl for sample id aliases
+        # check for sample id aliases
         sid_col = self._sample_id_aliases(sample_id_df)
 
         # clean
         sample_id_df[sid_col] = sample_id_df[sid_col].astype(str).str.strip()
         sample_id_df[sid_col] = sample_id_df[sid_col].str.replace(r"\.0$", "", regex=True)
-        sample_id_df[sid_col] = sample_id_df[sid_col].replace({"": np.nan, "nan": np.nan, "None": np.nan})
+        sample_id_df[sid_col] = sample_id_df[sid_col].replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
 
         # rename to guaranteed name
         sample_id_df = sample_id_df.rename(columns={sid_col: "sample_id"})
 
-        # now this works
+        
         sample_id_df["sample_id"] = sample_id_df["sample_id"].apply(self._base_sample_id)
         self.app.log(f"Cleaned Metadata {sample_id_df.head(5).to_string()}")
 
@@ -245,6 +256,9 @@ class ELISAParser:
             self.app.metadata_df,
             self.app.plates
         )
+        if hasattr(self.app, "analysis_view"):
+            self.app.analysis_view.update_pca_selection()
+        
         return connected_df
     
     def map_wells_to_samples(self, metadata_df, plates) -> pd.DataFrame:
@@ -276,10 +290,12 @@ class ELISAParser:
 
                     # Clean sample_id
                     if pd.isna(sample_id):
-                        sample_id = None
+                        sample_id = pd.NA
                     else:
-                        sample_id = str(sample_id).strip()
-                        sample_id = sample_id.replace(".0", "")
+                        sample_id = str(sample_id).strip().replace(".0", "")
+                        sample_id = sample_id
+                        if sample_id == "":
+                            sample_id = pd.NA
 
                     well_id = f"{row}{int(col):02d}"
 

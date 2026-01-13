@@ -3,6 +3,8 @@ from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 from .data import ELISAParser
 from .data import DataViewer
+from .analysis import AnalysisEngine
+
 
 class BeELISA(toga.App):
     def startup(self):
@@ -19,9 +21,43 @@ class BeELISA(toga.App):
         self.plates = []  # List of plate dictionaries: {"name": str, "raw_df": DataFrame, "id_df": DataFrame}
         self.plate_design_df = None
         self.connected_df = None
-        
+        self.calibrant_count = None
+
+        # Analysis state
+        self.analysis_config = {
+            'calibrant_concentrations': {},
+            'dilution_factor': 1.0,
+            'lod_loq_mode': 'per_plate'
+        }
+        self.analysis_results = None
+
         self.parser = ELISAParser(self)
         self.viewer = DataViewer(self)
+        self.engine = AnalysisEngine(self)
+        
+
+        log = toga.Command(
+            self.show_logs,
+            text="Open Logs",
+            tooltip="Open Log Panal in an Extra Window",
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 'l', # shortcut for open logs is ctrl/Cmd (MOD_1) plus the added letter 
+            order=1
+        )
+            
+        # all File Commands
+        refresh = toga.Command(
+            self.viewer.refresh_data,
+            text="Refresh",
+            tooltip="Refresh all Taps",
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 'r', # shortcut for open logs is ctrl/Cmd (MOD_1) plus the added letter 
+            order=2
+        )
+        # all File Commands
+        self.commands.add(log, refresh)
+        
+        
         
         # Main window title
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -30,27 +66,28 @@ class BeELISA(toga.App):
         main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         
 
+
+
         # Create tab container for different views
         self.content_tabs = toga.OptionContainer(
             style=Pack(flex=2) 
         )
         
         #  tabs using the content.append() method
-        self.content_tabs.content.append("ELISA Analysis", self.create_elisa_view())
-        self.content_tabs.content.append("Data View", self.create_data_view())
+        self.content_tabs.content.append("DATA IMPORT", self.create_elisa_view())
+        self.content_tabs.content.append("DATA VIEW", self.create_data_view())
+        self.content_tabs.content.append("ANALYSIS", self.create_analysis_view())
         
         main_box.add(self.content_tabs)
         
         
-        # Logs seperate window
-        start_analysis_btn = toga.Button("Start Analysis", on_press=self.start_analysis, style=Pack(margin=5))
-        main_box.add(start_analysis_btn)
-        
-        
-        # Logs seperate window
-        open_logs_btn = toga.Button("Open Logs", on_press=self.show_logs, style=Pack(margin=3))
-        main_box.add(open_logs_btn)
 
+        # start_analysis_btn = toga.Button("Start Analysis", on_press=self.start_analysis, style=Pack(margin=5))
+        # main_box.add(start_analysis_btn)
+        self.loading = toga.ActivityIndicator(style=Pack(width=5, height=5))
+        loading_box = toga.Box(children=[self.loading], style=Pack(align_items="center", justify_content="center"))
+
+        main_box.add(loading_box)
 
         # Status bar
         self.status_label = toga.Label(
@@ -97,10 +134,16 @@ class BeELISA(toga.App):
         self.view = DataView(self)
         return self.view.create_layout()
 
-    
-    
-    def start_analysis(self, widget=None):
-        self.log('started analysis')
+    # Analysis view
+    def create_analysis_view(self):
+        """Create analysis interface"""
+        from .ui.analysis_view import AnalysisView
+        self.analysis_view = AnalysisView(self)
+        return self.analysis_view.create_layout()
+
+
+    # def start_analysis(self, widget=None):
+    #     self.log('started analysis')
     
     def show_logs(self, widget=None):
         """ Open Logs Window """
@@ -126,8 +169,7 @@ class BeELISA(toga.App):
 
             
     def log(self, message: str):
-        
-
+    
         status = getattr(self, "status_label", None)
         if status is not None:
             status.text = message
@@ -135,8 +177,6 @@ class BeELISA(toga.App):
         textbox = getattr(self, "log_textbox", None)
         if textbox is not None:
             textbox.value = (textbox.value or "") + message + "\n"
-
-            
 
 
 def main():

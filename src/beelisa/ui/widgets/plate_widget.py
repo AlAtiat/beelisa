@@ -183,7 +183,7 @@ class PlateWidget:
             self._update_single_button(button, row, col)
 
     def _update_specific_buttons(self, wells_set):
-        """Update only specific well buttons (performance optimization)."""
+        """Update only specific well buttons"""
         for (row, col) in wells_set:
             if (row, col) in self.well_buttons:
                 button = self.well_buttons[(row, col)]
@@ -225,7 +225,10 @@ class PlateWidget:
             f"Neg: {counts[WellType.NEGATIVE_CONTROL]}"
         )
         self.well_count_label.text = count_text
-        
+        self.app.calibrant_count = counts[WellType.CALIBRANT]
+        if hasattr(self.app, "analysis_view"):
+            self.app.analysis_view.rebuild_calibrant_rows()
+
     def _well_name(self, row, col):
         """Return well name like A01, B12."""
         return f"{chr(65 + row)}{col + 1:02d}"
@@ -238,6 +241,7 @@ class PlateWidget:
         - First click: Mark range start (visual feedback with ⊙ symbol)
         - Second click: Select rectangular range from start to end
         """
+
         if not self.range_selection_mode:
             # First click - enter range selection mode
             self.range_selection_mode = True
@@ -296,12 +300,16 @@ class PlateWidget:
         }
         self.model.active_key = type_map[widget.value]
         self.app.log(f"well type changed to {widget.value}")
+        if hasattr(self.app, "analysis_view"):
+            self.app.analysis_view.rebuild_calibrant_rows()
 
     async def on_select_all(self, widget):
         """Handle Select All button."""
         self.model.select_all()
         self.refresh_visualization()
         self.app.log("All wells have been filled")
+        if hasattr(self.app, "analysis_view"):
+            self.app.analysis_view.rebuild_calibrant_rows()
 
 
 
@@ -310,5 +318,7 @@ class PlateWidget:
         self.model.select_none()
         self.refresh_visualization()
         self.app.log("Well Plate Cleared")
+        if hasattr(self.app, "analysis_view"):
+            self.app.analysis_view.rebuild_calibrant_rows()
 
 

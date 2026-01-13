@@ -25,6 +25,10 @@ requires = [
     "pandas",
     "openpyxl",
     "numpy",
+    "scipy",
+    "matplotlib>=3.5.0",
+    "scikit-learn>=1.0.0",
+    "seaborn", 
 ]
 test_requires = [
     "pytest",

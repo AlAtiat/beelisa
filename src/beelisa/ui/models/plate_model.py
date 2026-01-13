@@ -241,12 +241,12 @@ class PlateModel:
 
         return counts
 
-    # def to_dict(self):
-    #     """Export plate configuration to dictionary."""
-    #     return {
-    #         'grid': [[well.value for well in row] for row in self.grid],
-    #         'active_key': self.active_key.value,
-    #     }
+    def to_dict(self):
+        """Export plate configuration to dictionary."""
+        return {
+            'grid': [[well.value for well in row] for row in self.grid],
+            'active_key': self.active_key.value,
+        }
 
     def plate_design(self, key=None):
         plate_order = {}

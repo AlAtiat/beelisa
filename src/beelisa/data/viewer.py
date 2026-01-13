@@ -43,24 +43,32 @@ class DataViewer:
         """Refresh current data"""
         
         try:
-
+            self.app.loading.start()
             
             self.app.parser.try_merge()
+            self.app.loading.stop()
 
         except Exception as e:
             await self.app.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
+            self.app.loading.stop()
+
     
     def update_table(self):
         """Update table with new data"""
+        self.app.loading.start()
+
         # Convert DataFrame to Toga table format
         data_table_df = getattr(self.app, "connected_df", None)
         view = getattr(self.app, "view", None)
         if data_table_df is None or data_table_df.empty:
             self.app.log("No data available for DataView")
+            self.app.loading.stop()
+
             return
 
         if view is None or getattr(view, "data_table", None) is None:
             self.app.log("DataView not created yet (open Data View tab once).")
+            self.app.loading.stop()
             return
 
         # Populate filter checkboxes when data loads
@@ -74,6 +82,7 @@ class DataViewer:
             try:
                 view.table_holder.remove(view.data_table)
             except Exception:
+                self.app.loading.stop()
                 # sometimes already removed; ignore
                 pass
 
@@ -84,7 +93,8 @@ class DataViewer:
             style=Pack(flex=1, margin=5)
         )
         view.table_holder.add(view.data_table)
-    
+        self.app.loading.stop()
+
     def update_summary(self):
         """Update summary statistics"""
 
@@ -129,9 +139,10 @@ class DataViewer:
 
     def update_table_with_filters(self, selected_plates, selected_well_types):
         """Update table with filtered data"""
+        self.app.loading.start()
+
         # Store original if not already stored
-        if self.original_df is None:
-            self.original_df = self.app.connected_df.copy() if self.app.connected_df is not None else None
+        self.original_df = self.app.connected_df.copy() if self.app.connected_df is not None else None
 
         # Apply filters
         filtered_df = self.apply_filters(selected_plates, selected_well_types)
@@ -146,10 +157,19 @@ class DataViewer:
 
         # Restore original
         self.app.connected_df = temp_original
+        self.app.loading.stop()
+
 
     def clear_filters(self):
         """Clear all filters and show original data"""
-        if self.original_df is not None:
+        self.app.loading.start()
+        if self.app.connected_df is not None:
             self.app.connected_df = self.original_df.copy()
-        self.update_table()
-        self.update_summary()
+            self.update_table()
+            self.update_summary()
+            self.app.loading.stop()
+        else:
+            self.app.log('No data available to Clear')
+            self.app.loading.stop()
+            return
+

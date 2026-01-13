@@ -89,7 +89,7 @@ class DataView:
         # Two-column layout
         filters_row = toga.Box(style=Pack(direction=COLUMN, margin=5))
 
-        # LEFT: Plate filters
+        # Plate filters
         plate_filter_box = toga.Box(style=Pack(direction=ROW, margin=5, flex=1))
         plate_label = toga.Label('Plates:', style=Pack(margin=3, font_weight='bold'))
         plate_filter_box.add(plate_label)
@@ -97,7 +97,7 @@ class DataView:
         self.plate_checkboxes_container = toga.Box(style=Pack(direction=ROW, margin=3, flex=1))
         plate_filter_box.add(self.plate_checkboxes_container)
 
-        # RIGHT: Well type filters
+        # Well type filters
         well_type_filter_box = toga.Box(style=Pack(direction=ROW, margin=5, flex=1))
         well_type_label = toga.Label('Well Types:', style=Pack(margin=3, font_weight='bold'))
         well_type_filter_box.add(well_type_label)
