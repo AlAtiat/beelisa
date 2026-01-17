@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from .selection import ModelSelector
 from .models.registry import ModelRegistry
-import asyncio
 
 
 class AnalysisEngine:
@@ -28,6 +27,7 @@ class AnalysisEngine:
                 - qc_summary: dict of QC metrics per plate
                 - curve_fits: dict of curve parameters per plate
                 - lod_loq: dict of LOD/LOQ values per plate
+                - glob_lod_loq: dict of LOD/LOQ values globaly
                 - errors: list of error messages (if any)
         """
         self.app.loading.start()
@@ -41,17 +41,23 @@ class AnalysisEngine:
         qc_summary = {}
         curve_fits = {}
         lod_loq_values = {}
-
-        # Calculate global LOD/LOQ if needed
+        glob_lod_loq_values = {}
+    
+        # Calculate global LOD/LOQ
         global_lod = None
         global_loq = None
-        if self.lod_loq_mode == "global":
-            global_lod, global_loq = self._calculate_lod_loq_global(connected_df)
+
+        
+        # calculate them always as fallback if per plate has less than 3 negatives/blanks
+        global_lod, global_loq = self._calculate_lod_loq_global(connected_df)
 
         # Process each plate separately
         plate_names = connected_df['plate_name'].unique()
 
         for plate_name in plate_names:
+            lod_loq_method = None  # "per_plate_od" or "global_od" or None
+            lod_od = loq_od = None
+            lod = loq = None
             plate_data = connected_df[connected_df['plate_name'] == plate_name].copy()
 
             # Fit standard curve
@@ -65,7 +71,6 @@ class AnalysisEngine:
                 # Mark all concentrations as None if curve fitting failed
                 plate_data['concentration'] = None
                 plate_data['concentration_dilution_corrected'] = None
-                self.app.loading.stop()
 
             # Calculate QC metrics
             qc = self._compute_qc_metrics(plate_data)
@@ -73,12 +78,46 @@ class AnalysisEngine:
 
             # Calculate LOD/LOQ
             if self.lod_loq_mode == "per_plate":
-                lod, loq = self._calculate_lod_loq(plate_data, curve_result)
+                lod_od, loq_od = self._calculate_lod_loq(plate_data, curve_result)
+                if lod_od is not None and loq_od is not None:
+                    lod_loq_method = "per_plate_od"
+                else:
+                    lod_od, loq_od = global_lod, global_loq
+                    lod_loq_method = "global_od"
+                    self.app.log(f"[{plate_name}] Per plate unavailable -> using GLOBAL fallback.")
             else:
-                lod, loq = global_lod, global_loq
-                self.app.loading.stop()
+                lod_od, loq_od = global_lod, global_loq
+                lod_loq_method = "global_od"
+                self.app.log(f"[{plate_name}] Using GLOBAL OD LOD/LOQ (mode=global).")
 
-            lod_loq_values[plate_name] = {'lod': lod, 'loq': loq}
+            # OD thresholds -> concentration using each plate curve
+            model = curve_result.get("model")
+            params = curve_result.get("params")
+
+            if model is not None and params is not None and lod_od is not None and loq_od is not None:
+                lod_tmp = model.inverse(lod_od, params)
+                loq_tmp = model.inverse(loq_od, params)
+
+                lod = (lod_tmp * self.dilution_factor) if (lod_tmp is not None and np.isfinite(lod_tmp)) else None
+                loq = (loq_tmp * self.dilution_factor) if (loq_tmp is not None and np.isfinite(loq_tmp)) else None
+            else:
+                lod = loq = None
+                
+
+            lod_loq_values[plate_name] = {
+                'lod': lod,
+                'loq': loq,
+                'lod_od': lod_od,
+                'loq_od': loq_od,
+                'lod_loq_method': lod_loq_method
+            }
+
+            glob_lod_loq_values[plate_name] = {
+                'global_lod_od': global_lod,
+                'global_loq_od': global_loq
+            }
+
+
 
             # Classify results
             plate_data = self._classify_results(plate_data, lod, loq)
@@ -95,7 +134,9 @@ class AnalysisEngine:
             'data_df': results_df,
             'qc_summary': qc_summary,
             'curve_fits': curve_fits,
-            'lod_loq': lod_loq_values
+            'lod_loq': lod_loq_values,
+            'glob_lod_loq': glob_lod_loq_values,
+
         }
 
     def _validate_inputs(self, connected_df):
@@ -126,7 +167,7 @@ class AnalysisEngine:
             errors.append("No calibrant concentrations provided. Please enter calibrant concentrations.")
             self.app.log("No calibrant concentrations provided. Please enter calibrant concentrations.")
 
-        # Check for negative controls (optional warning, not error)
+        # Check for negative controls 
         if 'well_type' in connected_df.columns:
             has_negatives = (connected_df['well_type'] == 'NEGATIVE_CONTROL').any()
             if not has_negatives:
@@ -182,8 +223,9 @@ class AnalysisEngine:
 
         return {
             'success': True,
+            'selection_method': comparison.selection_method,
             'model_name': best_fit.model_name,
-            'model': best_model,  # Store model instance
+            'model': best_model,
             'params': best_fit.params,
             'param_names': best_fit.param_names,
             'r_squared': best_fit.r_squared,
@@ -276,12 +318,13 @@ class AnalysisEngine:
             blanks = plate_data[plate_data['well_type'] == 'NEGATIVE_CONTROL']
 
         if blanks.empty or len(blanks) < 3:
-            self.app.log('Insufficient blank samples for LOD/LOQ calculation (need at least 3)')
+            self.app.log('Insufficient blank samples for LOD/LOQ per Plate calculation (need at least 3) trying Globaly for all plates')
             return None, None
 
-        # Get blank concentrations (already calculated by _calculate_concentrations)
-        blank_concentrations = blanks['concentration_dilution_corrected'].dropna()
-        
+        # Get blank concentrations (
+        blank_od = blanks['od_value'].dropna()
+        if len(blank_od) < 3:
+            return None, None        
         # if len(blank_concentrations) < 3:
         #     # If concentrations not available, convert OD values
         #     blank_od = blanks['od_value'].dropna()
@@ -302,38 +345,39 @@ class AnalysisEngine:
         #                 blank_concs.append(conc_corrected)
         #         blank_concentrations = pd.Series(blank_concs)
 
-        if len(blank_concentrations) < 3:
-            self.app.log("Blank/Negative Concentrations less than 3")
-            return None, None
 
         # Calculate LOD and LOQ using concentration values
-        mean_blank = blank_concentrations.mean()
-        std_blank = blank_concentrations.std(ddof=1)  # Sample standard deviation
+        mean_blank = blank_od.mean()
+        std_blank = blank_od.std(ddof=1)  # Sample standard deviation
 
-        lod = mean_blank + 3 * std_blank
-        loq = mean_blank + 9 * std_blank  # Changed from 10 to 9 per standard
+        lod_od = mean_blank + 3 * std_blank # some use 3 and some 3.3
+        loq_od = mean_blank + 10 * std_blank  # some use 9 and some 10
 
-        self.app.log(f'LOD/LOQ calculated from {len(blank_concentrations)} blank samples: '
+        self.app.log(f'LOD/LOQ calculated per plate from {len(blank_od)} blank samples: '
                      f'mean={mean_blank:.4f}, std={std_blank:.4f}')
 
-        return lod, loq
+        return lod_od, loq_od
 
     def _calculate_lod_loq_global(self, connected_df):
         """Calculate global LOD/LOQ from all NEGATIVE_CONTROL wells."""
-        neg_controls = connected_df[connected_df['well_type'] == 'NEGATIVE_CONTROL']
-        neg_od = neg_controls['od_value'].dropna()
+        glob_blanks = connected_df[connected_df['well_type'] == 'BLANK']
+        if glob_blanks.empty:
+            glob_blanks = connected_df[connected_df['well_type'] == 'NEGATIVE_CONTROL']
+        glob_blank_od = glob_blanks['od_value'].dropna()
 
-        if len(neg_od) < 3:
+        if len(glob_blank_od) < 3:
             return None, None
 
-        mean_blank = neg_od.mean()
-        std_blank = neg_od.std()
+        mean_blank = glob_blank_od.mean()
+        std_blank = glob_blank_od.std(ddof=1)
 
         lod_od = mean_blank + 3 * std_blank
         loq_od = mean_blank + 10 * std_blank
+        
+        self.app.log(f'LOD/LOQ calculated globaly from {len(glob_blank_od)} blank samples: '
+                f'mean={mean_blank:.4f}, std={std_blank:.4f}')
 
-        # Note: For global LOD/LOQ, we'll need to convert using each plate's curve
-        # For now, return OD values - conversion happens in per-plate processing
+        # For now, use OD Values because concentrations from different plates, they are not comparable because each plate might use a different fit. conversion happens in per-plate processing
         return lod_od, loq_od
 
     def _classify_results(self, plate_data, lod, loq):
@@ -342,8 +386,8 @@ class AnalysisEngine:
 
         Classification:
             - < LOD: "Negative" or "Below Detection"
-            - LOD to LOQ: "Detected, Not Quantifiable"
-            - > LOQ: "Quantifiable"
+            - LOD to LOQ: "Borderline" (LOD to LOQ)"
+            - > LOQ: "Quantifiable (above LOQ)"
         """
         statuses = []
 
@@ -365,11 +409,11 @@ class AnalysisEngine:
                 continue
 
             if conc < lod:
-                statuses.append('Below Detection')
-            elif conc < loq:
-                statuses.append('Detected, Not Quantifiable')
+                statuses.append('Negative (below LOD)')
+            elif lod <= conc < loq:
+                statuses.append('Borderline (LOD to LOQ)')
             else:
-                statuses.append('Quantifiable')
+                statuses.append('Quantifiable (above LOQ)')
 
         plate_data['detection_status'] = statuses
 

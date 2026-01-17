@@ -84,7 +84,7 @@ class BeELISA(toga.App):
 
         # start_analysis_btn = toga.Button("Start Analysis", on_press=self.start_analysis, style=Pack(margin=5))
         # main_box.add(start_analysis_btn)
-        self.loading = toga.ActivityIndicator(style=Pack(width=5, height=5))
+        self.loading = toga.ActivityIndicator(style=Pack(width=10, height=10))
         loading_box = toga.Box(children=[self.loading], style=Pack(align_items="center", justify_content="center"))
 
         main_box.add(loading_box)

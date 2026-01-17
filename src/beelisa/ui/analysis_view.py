@@ -203,7 +203,7 @@ class AnalysisView:
         # Results Table tab
         results_table_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         self.results_table = toga.Table(
-            headings=['Sample ID', 'Plate', 'Well', 'OD', 'Concentration', 'Status'],
+            headings=['Plate', 'Sample ID', 'Well', 'OD', 'Concentration', 'Status'],
             data=[],
             style=Pack(flex=1, margin=5)
         )
@@ -381,8 +381,8 @@ class AnalysisView:
 
         for _, row in data_df.iterrows():
             if row['well_type'] == 'SAMPLE':
-                sample_id = str(row.get('sample_id', 'N/A'))
                 plate_name = str(row.get('plate_name', 'N/A'))
+                sample_id = str(row.get('sample_id', 'N/A'))
                 well_id = str(row.get('well_id', 'N/A'))
                 od_value = row.get('od_value')
                 concentration = row.get('concentration_dilution_corrected')
@@ -392,8 +392,8 @@ class AnalysisView:
                 conc_str = f"{concentration:.2f} {unit}" if pd.notna(concentration) and concentration is not None else 'N/A'
 
                 table_data.append((
-                    sample_id,
                     plate_name,
+                    sample_id,
                     well_id,
                     od_str,
                     conc_str,
@@ -425,23 +425,32 @@ class AnalysisView:
                 qc_text += f"    CV%: {cv_percent_str}%\n"
 
                 if metrics.get('high_cv_warning'):
-                    qc_text += f" WARNING: High CV% detected!\n"
+                    qc_text += "    High CV% detected!\n"
 
             # Add LOD/LOQ info
             lod_loq = results.get('lod_loq', {}).get(plate, {})
-            lod = lod_loq.get('lod')
-            loq = lod_loq.get('loq')
-
-            qc_text += f"\n  Detection Limits:\n"
-            if lod is not None:
-                qc_text += f"    LOD: {lod:.2f} {unit}\n"
+            lod_loq_method = lod_loq.get('lod_loq_method')
+            lod = lod_loq.get('lod') # as concentration from each plate standard curve
+            loq = lod_loq.get('loq') # as concentration from each plate standard curve
+            lod_od = lod_loq.get('lod_od')  # in OD 
+            loq_od = lod_loq.get('loq_od')  # in OD 
+            
+            qc_text += "\n  Detection Limits:\n"
+            if lod_loq_method is not None and lod_loq_method == 'per_plate_od':
+                qc_text += "    LOD/LOQ Method: Per Plate\n"
             else:
-                qc_text += f"    LOD: Not available\n"
+                qc_text += "    LOD/LOQ Method: Globaly\n"
+            if lod is not None:
+                qc_text += f"    LOD: {lod:.3f} {unit}\n"
+                qc_text += f"    LOD: {lod_od:.3f} OD\n"
+            else:
+                qc_text += "    LOD: Not available\n"
 
             if loq is not None:
-                qc_text += f"    LOQ: {loq:.2f} {unit}\n"
+                qc_text += f"    LOQ: {loq:.3f} {unit}\n"
+                qc_text += f"    LOQ: {loq_od:.3f} OD\n"
             else:
-                qc_text += f"    LOQ: Not available\n"
+                qc_text += "    LOQ: Not available\n"
 
             qc_text += "\n" + "=" * 60 + "\n\n"
 
@@ -457,8 +466,9 @@ class AnalysisView:
             if curve['success']:
                 # Show selected model
                 model_name = curve.get('model_name', 'Unknown')
-                model_text += f"\n  ✓ Selected Model: {model_name}\n"
-                model_text += f"  Selection Method: BIC (Bayesian Information Criterion)\n"
+                selection_method = curve.get('selection_method')
+                model_text += f"\n Selected Model: {model_name}\n"
+                model_text += f" Selection Method: {selection_method}\n"
 
                 # Show model parameters
                 params = curve.get('params', [])
@@ -485,7 +495,7 @@ class AnalysisView:
                 model_text += f"    Adjusted R²: {adj_r2_str}\n"
                 model_text += f"    RMSE: {rmse_str}\n"
                 model_text += f"    AIC: {aic_str}\n"
-                model_text += f"    BIC: {bic_str} ★\n"
+                model_text += f"    BIC: {bic_str}\n"
 
                 # Show comparison table
                 comparison_df = curve.get('comparison_df')

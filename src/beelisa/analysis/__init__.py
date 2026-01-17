@@ -8,6 +8,11 @@ from .models import (
     FitResult,
     LinearModel,
     LogLinearModel,
+    ExponentialModel,
+    Polynomial2Model,
+    Polynomial3Model,
+    FourPLModel,
+    FivePLModel,
     ModelRegistry,
 )
 
@@ -21,5 +26,10 @@ __all__ = [
     "FitResult",
     "LinearModel",
     "LogLinearModel",
+    "ExponentialModel",
+    "Polynomial2Model",
+    "Polynomial3Model",
+    "FourPLModel",
+    "FivePLModel",
     "ModelRegistry",
 ]

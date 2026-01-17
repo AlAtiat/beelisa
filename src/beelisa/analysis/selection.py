@@ -38,8 +38,7 @@ class ModelSelector:
             selection_method: "bic" (default, recommended for small n) or "aic"
         """
         self.selection_method = selection_method.lower()
-        # if self.selection_method not in ["bic", "aic"]:
-        #     raise ValueError("selection_method must be 'bic' or 'aic'")
+
 
     def compare_models(self, x: np.ndarray, y: np.ndarray, models: Optional[List[str]] = None) -> ModelComparison:
         """

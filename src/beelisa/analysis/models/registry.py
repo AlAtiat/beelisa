@@ -4,7 +4,10 @@ from typing import Dict, Type, List
 from .base import CurveModel
 from .linear import LinearModel
 from .log_linear import LogLinearModel
-
+from .exponential import ExponentialModel
+from .polynomial import Polynomial2Model, Polynomial3Model
+from .four_pl import FourPLModel
+from .five_pl import FivePLModel
 
 class ModelRegistry:
     """
@@ -65,7 +68,11 @@ class ModelRegistry:
         return [model_class() for model_class in cls._models.values()]
 
 
-# Auto-register all available models
+# register all available models
 ModelRegistry.register(LinearModel)
 ModelRegistry.register(LogLinearModel)
-
+ModelRegistry.register(ExponentialModel)
+ModelRegistry.register(Polynomial2Model)
+ModelRegistry.register(Polynomial3Model)
+ModelRegistry.register(FourPLModel)
+ModelRegistry.register(FivePLModel)
