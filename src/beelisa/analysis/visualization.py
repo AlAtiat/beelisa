@@ -100,58 +100,58 @@ class ELISAVisualizer:
         return temp_file
 
 
-    # def create_pca_plot(
-    #     self,
-    #     pca_result: Dict,
-    #     title: str = "PCA Analysis"
-    # ) -> str:
-    #     """
-    #     Create PCA biplot (PC1 vs PC2).
+    def create_pca_plot(
+        self,
+        pca_result: Dict,
+        title: str = "PCA Analysis"
+    ) -> str:
+        """
+        Create PCA biplot (PC1 vs PC2).
 
-    #     Args:
-    #         pca_result: Dictionary with PCA results
-    #         title: Plot title
+        Args:
+            pca_result: Dictionary with PCA results
+            title: Plot title
 
-    #     Returns:
-    #         Path to PNG file
-    #     """
-    #     fig, ax = plt.subplots(figsize=(10, 7))
+        Returns:
+            Path to PNG file
+        """
+        fig, ax = plt.subplots(figsize=(10, 7))
 
-    #     scores = pca_result.get('scores')
-    #     variance_explained = pca_result.get('variance_explained')
-    #     labels = pca_result.get('labels')
+        scores = pca_result.get('scores')
+        variance_explained = pca_result.get('variance_explained')
+        labels = pca_result.get('labels')
 
-    #     if scores is not None and variance_explained is not None:
-    #         # Scatter plot of PC scores
-    #         ax.scatter(scores[:, 0], scores[:, 1], s=120, marker='$\u25EF$')
+        if scores is not None and variance_explained is not None:
+            # Scatter plot of PC scores
+            ax.scatter(scores[:, 0], scores[:, 1], s=120, marker='$\u25EF$')
 
-    #         # Add labels to points
-    #         if labels is not None:
-    #             for i, label in enumerate(labels):
-    #                 ax.annotate(label, (scores[i, 0], scores[i, 1]),
-    #                             xytext=(5, 5), textcoords='offset points',
-    #                             fontsize=9, alpha=0.8)
+            # Add labels to points
+            if labels is not None:
+                for i, label in enumerate(labels):
+                    ax.annotate(label, (scores[i, 0], scores[i, 1]),
+                                xytext=(5, 5), textcoords='offset points',
+                                fontsize=9, alpha=0.8)
 
-    #         # Add center lines
-    #         ax.axhline(y=0, color='grey', lw=1)
-    #         ax.axvline(x=0, color='grey', lw=1)
+            # Add center lines
+            ax.axhline(y=0, color='grey', lw=1)
+            ax.axvline(x=0, color='grey', lw=1)
 
-    #         # Axis labels with variance explained
-    #         pc1_var = variance_explained[0] * 100
-    #         pc2_var = variance_explained[1] * 100
+            # Axis labels with variance explained
+            pc1_var = variance_explained[0] * 100
+            pc2_var = variance_explained[1] * 100
 
-    #         ax.set_xlabel(f'PC1 ({pc1_var:.1f}% variance)', fontsize=12, fontweight='bold')
-    #         ax.set_ylabel(f'PC2 ({pc2_var:.1f}% variance)', fontsize=12, fontweight='bold')
-    #     else:
-    #         ax.set_xlabel('PC1', fontsize=12, fontweight='bold')
-    #         ax.set_ylabel('PC2', fontsize=12, fontweight='bold')
+            ax.set_xlabel(f'PC1 ({pc1_var:.1f}% variance)', fontsize=12, fontweight='bold')
+            ax.set_ylabel(f'PC2 ({pc2_var:.1f}% variance)', fontsize=12, fontweight='bold')
+        else:
+            ax.set_xlabel('PC1', fontsize=12, fontweight='bold')
+            ax.set_ylabel('PC2', fontsize=12, fontweight='bold')
 
-    #     ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
-    #     ax.grid(True, alpha=0.3, linestyle='--')
+        ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
+        ax.grid(True, alpha=0.3, linestyle='--')
 
-    #     # Save to temp file
-    #     temp_file = os.path.join(self.temp_dir, 'pca_plot.png')
-    #     fig.savefig(temp_file, dpi=150, bbox_inches='tight', facecolor='white')
-    #     plt.close(fig)
+        # Save to temp file
+        temp_file = os.path.join(self.temp_dir, 'pca_plot.png')
+        fig.savefig(temp_file, dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
 
-    #     return temp_file
+        return temp_file

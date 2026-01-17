@@ -22,15 +22,15 @@ class Mainboard:
 
     def create_layout(self):
         """Create ELISA analysis view layout."""
-        
-        left_container = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        left_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        left_container= toga.ScrollContainer(content=left_box, flex=1)
         right_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         right_container = toga.ScrollContainer(content=right_box, flex=1)
         container = toga.SplitContainer(content=[left_container, right_container], style=Pack(flex=1, margin=10))
         
         # Plate configuration section
         plate_section = self.create_plate_section()
-        left_container.add(plate_section)
+        left_box.add(plate_section)
 
         # File loading section
         load_section = self.create_load_section()

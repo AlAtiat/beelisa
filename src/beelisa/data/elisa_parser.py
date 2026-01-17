@@ -239,7 +239,8 @@ class ELISAParser:
 
     def try_merge(self):
         """ Tries to merge and connect all data when loaded to run the mapping"""
-
+        
+        
         if len(self.app.plates) == 0:
             self.app.log("Please load at least one plate (Raw Data + Plate ID)")
             return None
@@ -256,9 +257,9 @@ class ELISAParser:
             self.app.metadata_df,
             self.app.plates
         )
-        if hasattr(self.app, "analysis_view"):
-            self.app.analysis_view.update_pca_selection()
-        
+
+
+
         return connected_df
     
     def map_wells_to_samples(self, metadata_df, plates) -> pd.DataFrame:
@@ -330,14 +331,12 @@ class ELISAParser:
 
         # Concatenate all plates into one dataframe
         self.app.connected_df = pd.concat(all_plate_dfs, ignore_index=True)
-
+        
+            
+            
         self.app.log(f"Merged {len(plates)} plate(s) with {len(self.app.connected_df)} total wells")
         self.app.log("Data View Available")
 
-        # Update viewer if available
-        if hasattr(self.app, "viewer") and self.app.viewer is not None:
-            self.app.viewer.update_table()
-            self.app.viewer.update_summary()
 
         return self.app.connected_df
 

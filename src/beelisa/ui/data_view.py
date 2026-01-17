@@ -40,6 +40,7 @@ class DataView:
         # Summary section
         summary = self.create_summary()
         container.add(summary)
+        self.container = container
         
         return container
     
@@ -55,7 +56,7 @@ class DataView:
         )
         refresh_btn = toga.Button(
             'Refresh Data',
-            on_press=self.app.viewer.refresh_data,
+            on_press=self.app.refresh_data,
             style=Pack(margin=5)
         )
         

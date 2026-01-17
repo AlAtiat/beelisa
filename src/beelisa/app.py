@@ -4,7 +4,10 @@ from toga.style.pack import COLUMN, ROW
 from .data import ELISAParser
 from .data import DataViewer
 from .analysis import AnalysisEngine
-
+from .ui.data_view import DataView
+from .ui.analysis_view import AnalysisView
+from .ui.results_view import ResultsView
+import asyncio
 
 class BeELISA(toga.App):
     def startup(self):
@@ -23,6 +26,9 @@ class BeELISA(toga.App):
         self.connected_df = None
         self.calibrant_count = None
 
+        # Plate grouping for inter-group analysis
+        self.plate_groups = {}  # {"Group Name": ["Plate_001", "Plate_002", ...]}
+
         # Analysis state
         self.analysis_config = {
             'calibrant_concentrations': {},
@@ -34,7 +40,9 @@ class BeELISA(toga.App):
         self.parser = ELISAParser(self)
         self.viewer = DataViewer(self)
         self.engine = AnalysisEngine(self)
-        
+        self.data_view = DataView(self)
+        self.analysis_view = AnalysisView(self)
+        self.results_view = ResultsView(self)
 
         log = toga.Command(
             self.show_logs,
@@ -47,7 +55,7 @@ class BeELISA(toga.App):
             
         # all File Commands
         refresh = toga.Command(
-            self.viewer.refresh_data,
+            self.refresh_data,
             text="Refresh",
             tooltip="Refresh all Taps",
             group=toga.Group.FILE,
@@ -77,7 +85,8 @@ class BeELISA(toga.App):
         self.content_tabs.content.append("DATA IMPORT", self.create_elisa_view())
         self.content_tabs.content.append("DATA VIEW", self.create_data_view())
         self.content_tabs.content.append("ANALYSIS", self.create_analysis_view())
-        
+        self.content_tabs.content.append("RESULTS", self.create_results_view())
+
         main_box.add(self.content_tabs)
         
         
@@ -130,20 +139,52 @@ class BeELISA(toga.App):
     # View migrated data
     def create_data_view(self):
         """Create data viewing interface"""
-        from .ui.data_view import DataView
-        self.view = DataView(self)
-        return self.view.create_layout()
+        return self.data_view.create_layout()
 
     # Analysis view
     def create_analysis_view(self):
         """Create analysis interface"""
-        from .ui.analysis_view import AnalysisView
-        self.analysis_view = AnalysisView(self)
         return self.analysis_view.create_layout()
 
+    # Results view
+    def create_results_view(self):
+        """Create results interface"""
+        return self.results_view.create_layout()
 
     # def start_analysis(self, widget=None):
     #     self.log('started analysis')
+    
+    def refresh_data(self, widget=None):
+        """Start refreshing data in a background task from toga"""
+        self.loading.start()
+        asyncio.create_task(self.perform_refresh())
+
+    async def perform_refresh(self, widget=None):
+        """Refresh current data"""
+        
+        try:
+            self.parser.try_merge()
+            # Update viewer if available
+            if hasattr(self, "viewer") and self.viewer is not None:
+                self.viewer.update_table()
+                self.viewer.update_summary()
+
+            if hasattr(self, "data_view") and self.viewer is not None:
+                self.data_view.populate_plate_filters()
+
+            
+            if hasattr(self, "analysis_view") and self.analysis_view is not None:
+                self.analysis_view.update_pca_selection()
+                self.analysis_view.rebuild_calibrant_rows()
+                self.analysis_view.refresh_plate_checkboxes()
+                self.analysis_view.refresh_groups_display()
+        
+        except Exception as e:
+           await self.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
+
+        finally:
+            self.loading.stop()
+    
     
     def show_logs(self, widget=None):
         """ Open Logs Window """

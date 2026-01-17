@@ -39,69 +39,53 @@ class DataViewer:
         except Exception as e:
             await self.app.main_window.dialog(toga.ErrorDialog('Error', f'Export failed: {str(e)}'))
             
-    async def refresh_data(self, widget):
-        """Refresh current data"""
-        
-        try:
-            self.app.loading.start()
-            
-            self.app.parser.try_merge()
-            self.app.loading.stop()
 
-        except Exception as e:
-            await self.app.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
-            self.app.loading.stop()
-
-    
     def update_table(self):
         """Update table with new data"""
-        self.app.loading.start()
 
         # Convert DataFrame to Toga table format
         data_table_df = getattr(self.app, "connected_df", None)
-        view = getattr(self.app, "view", None)
+        data_view = getattr(self.app, "data_view", None)
         if data_table_df is None or data_table_df.empty:
             self.app.log("No data available for DataView")
             self.app.loading.stop()
 
             return
 
-        if view is None or getattr(view, "data_table", None) is None:
+        if data_view is None or getattr(data_view, "data_table", None) is None:
             self.app.log("DataView not created yet (open Data View tab once).")
             self.app.loading.stop()
             return
 
         # Populate filter checkboxes when data loads
-        if hasattr(view, 'populate_plate_filters'):
-            view.populate_plate_filters()
+        if hasattr(data_view, 'populate_plate_filters'):
+            data_view.populate_plate_filters()
 
         headings = [str(c) for c in data_table_df.columns]
         rows = [tuple(r) for r in data_table_df.to_numpy()]
         # remove old table
-        if getattr(view, "data_table", None) is not None:
+        if getattr(data_view, "data_table", None) is not None:
             try:
-                view.table_holder.remove(view.data_table)
+                data_view.table_holder.remove(data_view.data_table)
             except Exception:
-                self.app.loading.stop()
                 # sometimes already removed; ignore
                 pass
 
         # create new table with correct data
-        view.data_table = toga.Table(
+        data_view.data_table = toga.Table(
             headings=headings,
             data=rows,
             style=Pack(flex=1, margin=5)
         )
-        view.table_holder.add(view.data_table)
-        self.app.loading.stop()
+        data_view.table_holder.add(data_view.data_table)
 
     def update_summary(self):
         """Update summary statistics"""
 
         data_table_df = getattr(self.app, "connected_df", None)
-        view = getattr(self.app, "view", None)
+        data_view = getattr(self.app, "data_view", None)
 
-        if data_table_df is None or data_table_df.empty or view is None or getattr(view, "summary_label", None) is None:
+        if data_table_df is None or data_table_df.empty or data_view is None or getattr(data_view, "summary_label", None) is None:
             return
 
         n_rows = len(data_table_df)
@@ -112,7 +96,7 @@ class DataViewer:
             if "well_type" in data_table_df.columns and "_merge" in data_table_df.columns else 0
         )
 
-        view.summary_label.text = (
+        data_view.summary_label.text = (
             f"Rows: {n_rows} | Cols: {n_cols}\n"
             f"Number of samples (SAMPLE): {n_samples}\n"
             f"SAMPLE wells missing from metadata: {n_missing_meta}"
@@ -139,7 +123,6 @@ class DataViewer:
 
     def update_table_with_filters(self, selected_plates, selected_well_types):
         """Update table with filtered data"""
-        self.app.loading.start()
 
         # Store original if not already stored
         self.original_df = self.app.connected_df.copy() if self.app.connected_df is not None else None
@@ -157,19 +140,19 @@ class DataViewer:
 
         # Restore original
         self.app.connected_df = temp_original
-        self.app.loading.stop()
 
 
     def clear_filters(self):
         """Clear all filters and show original data"""
-        self.app.loading.start()
-        if self.app.connected_df is not None:
+        if self.original_df is not None:
             self.app.connected_df = self.original_df.copy()
             self.update_table()
             self.update_summary()
-            self.app.loading.stop()
+            self.original_df = None
         else:
-            self.app.log('No data available to Clear')
-            self.app.loading.stop()
+            self.update_table()
+            self.update_summary()
+            self.app.log('Filters cleared (view reset to current data)')
             return
+
 

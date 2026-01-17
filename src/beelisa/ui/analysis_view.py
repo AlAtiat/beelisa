@@ -1,20 +1,21 @@
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-import pandas as pd
 
 
 class AnalysisView:
-    """ELISA analysis interface with configuration and results display."""
+    """ELISA analysis interface with configuration and plate grouping."""
 
     def __init__(self, app):
         self.app = app
         self.calibrant_rows = []
-        self.results_table = None
-        self.qc_summary = None
-        self.curve_info = None
-        self.current_plots = {}  # Store generated plot paths
-        self.current_plot_type = None  # Track which plot type is currently displayed
+        self.calibrant_container = []
+
+        # Plate grouping UI elements
+        self.plate_switches = {}  # {plate_name: toga.Switch}
+        self.plates_container = None
+        self.groups_list_container = None
+        self.group_name_input = None
 
     def create_layout(self):
         """Create analysis view layout."""
@@ -32,9 +33,10 @@ class AnalysisView:
         buttons = self.create_action_buttons()
         upper_container.add(buttons)
 
-        # Results section
-        results = self.create_results_section()
-        under_box.add(results)
+        # Plate Grouping
+        grouping = self.create_plate_grouping_section()
+        under_box.add(grouping)
+        self.container = container
 
         return container
 
@@ -123,6 +125,81 @@ class AnalysisView:
 
         return config_box
 
+    def create_plate_grouping_section(self):
+        """Create plate grouping panel for organizing plates into groups."""
+        grouping_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
+
+        # Header
+        header = toga.Label(
+            'PLATE GROUPS',
+            style=Pack(margin=5, font_weight='bold', font_size=14)
+        )
+        grouping_box.add(header)
+        grouping_box.add(toga.Divider())
+
+        # Available Plates section
+        available_label = toga.Label(
+            'Available Plates (unassigned):',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        grouping_box.add(available_label)
+
+        # Container for plate checkboxes (will be populated dynamically)
+        self.plates_container = toga.Box(style=Pack(direction=COLUMN, margin=5))
+        plates_scroll = toga.ScrollContainer(
+            content=self.plates_container,
+            style=Pack(height=120, margin=5)
+        )
+        grouping_box.add(plates_scroll)
+
+        # Group creation section
+        create_label = toga.Label(
+            'Create New Group:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        grouping_box.add(create_label)
+
+        # Group name input row
+        create_row = toga.Box(style=Pack(direction=ROW, margin=5))
+        self.group_name_input = toga.TextInput(
+            placeholder='Enter group name...',
+            style=Pack(flex=1, margin=2)
+        )
+        create_btn = toga.Button(
+            '+ Create Group',
+            on_press=self.on_create_group,
+            style=Pack(margin=2)
+        )
+        create_row.add(self.group_name_input, create_btn)
+        grouping_box.add(create_row)
+
+        grouping_box.add(toga.Divider())
+
+        # Existing Groups section
+        groups_label = toga.Label(
+            'Created Groups:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        grouping_box.add(groups_label)
+
+        # Container for groups list (will be populated dynamically)
+        self.groups_list_container = toga.Box(style=Pack(direction=COLUMN, margin=5))
+        groups_scroll = toga.ScrollContainer(
+            content=self.groups_list_container,
+            style=Pack(height=150, margin=5)
+        )
+        grouping_box.add(groups_scroll)
+
+        # Clear all groups button
+        clear_btn = toga.Button(
+            'Clear All Groups',
+            on_press=self.on_clear_all_groups,
+            style=Pack(margin=5)
+        )
+        grouping_box.add(clear_btn)
+
+        return grouping_box
+
     def update_pca_selection(self):
         if self.pca_selection is None:
             return
@@ -137,11 +214,172 @@ class AnalysisView:
         """ Rebuild count of calibrants"""
         cal_count = int(self.app.calibrant_count or 0)
         self.calibrant_container.clear()
-        
+
         for order in range(cal_count):
             row = self.create_calibrant_row(order)
             self.calibrant_container.add(row)
-        
+
+    # ==================== PLATE GROUPING METHODS ====================
+
+    def refresh_plate_checkboxes(self):
+        """Rebuild available plates list (only unassigned plates)."""
+        if self.plates_container is None:
+            return
+
+        self.plates_container.clear()
+        self.plate_switches.clear()
+
+        # Get plates already in groups
+        grouped_plates = set()
+        for plates in self.app.plate_groups.values():
+            grouped_plates.update(plates)
+
+        # Show only unassigned plates
+        for plate in self.app.plates:
+            plate_name = plate["name"]
+            if plate_name not in grouped_plates:
+                switch = toga.Switch(
+                    plate_name,
+                    style=Pack(margin=2)
+                )
+                self.plate_switches[plate_name] = switch
+                self.plates_container.add(switch)
+
+        # Show message if no plates available
+        if not self.plate_switches:
+            if len(self.app.plates) == 0:
+                msg = toga.Label(
+                    'No plates loaded yet.',
+                    style=Pack(margin=5, font_style='italic')
+                )
+            else:
+                msg = toga.Label(
+                    'All plates are assigned to groups.',
+                    style=Pack(margin=5, font_style='italic')
+                )
+            self.plates_container.add(msg)
+
+    def refresh_groups_display(self):
+        """Rebuild the groups list display."""
+        if self.groups_list_container is None:
+            return
+
+        self.groups_list_container.clear()
+
+        if not self.app.plate_groups:
+            msg = toga.Label(
+                'No groups created yet.',
+                style=Pack(margin=5, font_style='italic')
+            )
+            self.groups_list_container.add(msg)
+            return
+
+        for group_name, plates in self.app.plate_groups.items():
+            group_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
+
+            # Header row with name and remove button
+            header_row = toga.Box(style=Pack(direction=ROW))
+            header_label = toga.Label(
+                f'{group_name} ({len(plates)} plates)',
+                style=Pack(flex=1, font_weight='bold', margin=2)
+            )
+            remove_btn = toga.Button(
+                'Remove',
+                on_press=lambda w, gn=group_name: self.on_remove_group(gn),
+                style=Pack(margin=2)
+            )
+            header_row.add(header_label, remove_btn)
+
+            # Plates list
+            plates_str = ', '.join(plates) if len(plates) <= 5 else ', '.join(plates[:5]) + f'... (+{len(plates)-5})'
+            plates_label = toga.Label(
+                f'  {plates_str}',
+                style=Pack(margin=2)
+            )
+
+            group_box.add(header_row, plates_label)
+            group_box.add(toga.Divider())
+            self.groups_list_container.add(group_box)
+
+    async def on_create_group(self, widget):
+        """Create a new group from selected plates."""
+        group_name = self.group_name_input.value.strip() if self.group_name_input else ''
+
+        # Validate group name
+        if not group_name:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('Invalid Name', 'Please enter a group name.')
+            )
+            return
+
+        if len(group_name) > 50:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('Invalid Name', 'Group name must be 50 characters or less.')
+            )
+            return
+
+        if group_name in self.app.plate_groups:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('Duplicate Name', f'A group named "{group_name}" already exists.')
+            )
+            return
+
+        # Collect selected plates
+        selected = [name for name, switch in self.plate_switches.items() if switch.value]
+
+        if not selected:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('No Plates Selected', 'Please select at least one plate to create a group.')
+            )
+            return
+
+        # Create the group
+        self.app.plate_groups[group_name] = selected
+        self.app.log(f'Created group "{group_name}" with {len(selected)} plate(s): {", ".join(selected)}')
+
+        # Clear input and refresh UI
+        self.group_name_input.value = ''
+        self.refresh_plate_checkboxes()
+        self.refresh_groups_display()
+
+    def on_remove_group(self, group_name):
+        """Remove a group and return plates to available pool."""
+        if group_name in self.app.plate_groups:
+            plates = self.app.plate_groups[group_name]
+            del self.app.plate_groups[group_name]
+            self.app.log(f'Removed group "{group_name}", {len(plates)} plate(s) returned to available')
+
+            # Refresh UI
+            self.refresh_plate_checkboxes()
+            self.refresh_groups_display()
+
+    async def on_clear_all_groups(self, widget):
+        """Clear all groups and return all plates to available."""
+        if not self.app.plate_groups:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Groups', 'There are no groups to clear.')
+            )
+            return
+
+        # Confirm action
+        confirm = await self.app.main_window.dialog(
+            toga.QuestionDialog(
+                'Confirm Clear',
+                f'Are you sure you want to remove all {len(self.app.plate_groups)} group(s)?'
+            )
+        )
+
+        if confirm:
+            count = len(self.app.plate_groups)
+            self.app.plate_groups.clear()
+            self.app.log(f'Cleared all {count} group(s)')
+
+            # Refresh UI
+            self.refresh_plate_checkboxes()
+            self.refresh_groups_display()
+
+    # ==================== END PLATE GROUPING METHODS ====================
+
     def create_calibrant_row(self, order):
         """Create a single calibrant input row."""
         row = toga.Box(style=Pack(direction=ROW, margin=2))
@@ -173,103 +411,18 @@ class AnalysisView:
 
         clear_btn = toga.Button(
             'Clear Results',
-            on_press=self.on_clear_results,
+            on_press=self.app.results_view.on_clear_results,
             style=Pack(margin=5, flex=1)
         )
 
         export_btn = toga.Button(
             'Export to CSV',
-            on_press=self.on_export_results,
+            on_press=self.app.results_view.on_export_results,
             style=Pack(margin=5, flex=1)
         )
 
         btn_box.add(run_btn, clear_btn, export_btn)
         return btn_box
-
-    def create_results_section(self):
-        """Create tabbed results display."""
-        results_box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=5))
-
-        results_label = toga.Label(
-            'ANALYSIS RESULTS',
-            style=Pack(margin=5, font_weight='bold', font_size=14)
-        )
-        results_box.add(results_label)
-        results_box.add(toga.Divider())
-
-        # Create tabs
-        self.results_tabs = toga.OptionContainer(style=Pack(flex=1, margin=5))
-
-        # Results Table tab
-        results_table_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        self.results_table = toga.Table(
-            headings=['Plate', 'Sample ID', 'Well', 'OD', 'Concentration', 'Status'],
-            data=[],
-            style=Pack(flex=1, margin=5)
-        )
-        results_table_box.add(self.results_table)
-
-        # QC Summary tab
-        qc_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        self.qc_summary = toga.MultilineTextInput(
-            readonly=True,
-            style=Pack(flex=1, margin=5)
-        )
-        qc_box.add(self.qc_summary)
-
-        # Model Comparison tab
-        model_comp_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        self.model_comparison = toga.MultilineTextInput(
-            readonly=True,
-            style=Pack(flex=1, margin=5)
-        )
-        model_comp_box.add(self.model_comparison)
-
-        # Plots tab
-        plots_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-
-        # Plot navigation buttons
-        plot_buttons_box = toga.Box(style=Pack(direction=ROW, margin=5))
-
-        self.plot_std_curve_btn = toga.Button(
-            'Standard Curve',
-            on_press=self.on_show_standard_curve,
-            style=Pack(margin=2, flex=1)
-        )
-   
-        self.plot_pca_btn = toga.Button(
-            'PCA Analysis',
-            on_press=self.on_show_pca,
-            style=Pack(margin=2, flex=1)
-        )
-
-        plot_buttons_box.add(
-            self.plot_std_curve_btn,
-            self.plot_pca_btn
-        )
-
-        plots_box.add(plot_buttons_box)
-
-        # Add plate selector dropdown
-        plate_selector_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        plate_selector_label = toga.Label('Select Plate:', style=Pack(margin=5, width=100))
-        self.plate_selector = toga.Selection(items=[], style=Pack(flex=1, margin=5))
-        self.plate_selector.on_change = self.on_plate_selection_changed
-        plate_selector_box.add(plate_selector_label, self.plate_selector)
-        plots_box.add(plate_selector_box)
-
-        # ImageView for displaying plots
-        self.plot_imageview = toga.ImageView(style=Pack(flex=1, margin=5))
-        plots_box.add(self.plot_imageview)
-
-        self.results_tabs.content.append('Results Table', results_table_box)
-        self.results_tabs.content.append('QC Summary', qc_box)
-        self.results_tabs.content.append('Model Comparison', model_comp_box)
-        self.results_tabs.content.append('Plots', plots_box)
-
-        results_box.add(self.results_tabs)
-
-        return results_box
 
     async def on_run_analysis(self, widget):
         """Trigger analysis workflow."""
@@ -356,8 +509,8 @@ class AnalysisView:
             self.app.analysis_results = results
             self.app.log(f'Analysis completed for {len(results["curve_fits"])} plate(s)')
 
-            # Update display
-            self.update_results_display(results)
+            # Update display in results view
+            self.app.results_view.update_results_display(results)
 
             await self.app.main_window.dialog(
                 toga.InfoDialog('Success', 'Analysis completed successfully!')
@@ -369,349 +522,3 @@ class AnalysisView:
             await self.app.main_window.dialog(
                 toga.ErrorDialog('Analysis Error', str(e))
             )
-
-    def update_results_display(self, results):
-        """Update results table, QC summary, and model comparison."""
-        # Get concentration unit from config
-        unit = self.app.analysis_config.get('concentration_unit', 'U/mL')
-
-        # Update results table
-        data_df = results['data_df']
-        table_data = []
-
-        for _, row in data_df.iterrows():
-            if row['well_type'] == 'SAMPLE':
-                plate_name = str(row.get('plate_name', 'N/A'))
-                sample_id = str(row.get('sample_id', 'N/A'))
-                well_id = str(row.get('well_id', 'N/A'))
-                od_value = row.get('od_value')
-                concentration = row.get('concentration_dilution_corrected')
-                status = str(row.get('detection_status', 'N/A'))
-
-                od_str = f"{od_value:.3f}" if pd.notna(od_value) else 'N/A'
-                conc_str = f"{concentration:.2f} {unit}" if pd.notna(concentration) and concentration is not None else 'N/A'
-
-                table_data.append((
-                    plate_name,
-                    sample_id,
-                    well_id,
-                    od_str,
-                    conc_str,
-                    status
-                ))
-
-        self.results_table.data = table_data
-
-        # Update QC summary
-        qc_text = "QC Summary\n" + "=" * 60 + "\n\n"
-
-        for plate, qc in results.get('qc_summary', {}).items():
-            qc_text += f"Plate: {plate}\n"
-            qc_text += "-" * 60 + "\n"
-
-            for well_type, metrics in qc.items():
-                qc_text += f"\n  {well_type}:\n"
-                qc_text += f"    N wells: {metrics['n_wells']}\n"
-                mean_od = metrics.get('mean_od')
-                std_od = metrics.get('std_od')
-                cv_percent = metrics.get('cv_percent')
-
-                mean_od_str = f"{mean_od:.4f}" if mean_od is not None else 'N/A'
-                std_od_str = f"{std_od:.4f}" if std_od is not None else 'N/A'
-                cv_percent_str = f"{cv_percent:.2f}" if cv_percent is not None else 'N/A'
-
-                qc_text += f"    Mean OD: {mean_od_str}\n"
-                qc_text += f"    Std Dev: {std_od_str}\n"
-                qc_text += f"    CV%: {cv_percent_str}%\n"
-
-                if metrics.get('high_cv_warning'):
-                    qc_text += "    High CV% detected!\n"
-
-            # Add LOD/LOQ info
-            lod_loq = results.get('lod_loq', {}).get(plate, {})
-            lod_loq_method = lod_loq.get('lod_loq_method')
-            lod = lod_loq.get('lod') # as concentration from each plate standard curve
-            loq = lod_loq.get('loq') # as concentration from each plate standard curve
-            lod_od = lod_loq.get('lod_od')  # in OD 
-            loq_od = lod_loq.get('loq_od')  # in OD 
-            
-            qc_text += "\n  Detection Limits:\n"
-            if lod_loq_method is not None and lod_loq_method == 'per_plate_od':
-                qc_text += "    LOD/LOQ Method: Per Plate\n"
-            else:
-                qc_text += "    LOD/LOQ Method: Globaly\n"
-            if lod is not None:
-                qc_text += f"    LOD: {lod:.3f} {unit}\n"
-                qc_text += f"    LOD: {lod_od:.3f} OD\n"
-            else:
-                qc_text += "    LOD: Not available\n"
-
-            if loq is not None:
-                qc_text += f"    LOQ: {loq:.3f} {unit}\n"
-                qc_text += f"    LOQ: {loq_od:.3f} OD\n"
-            else:
-                qc_text += "    LOQ: Not available\n"
-
-            qc_text += "\n" + "=" * 60 + "\n\n"
-
-        self.qc_summary.value = qc_text
-
-        # Update model comparison
-        model_text = "Model Comparison & Selection\n" + "=" * 60 + "\n\n"
-
-        for plate, curve in results.get('curve_fits', {}).items():
-            model_text += f"Plate: {plate}\n"
-            model_text += "-" * 60 + "\n"
-
-            if curve['success']:
-                # Show selected model
-                model_name = curve.get('model_name', 'Unknown')
-                selection_method = curve.get('selection_method')
-                model_text += f"\n Selected Model: {model_name}\n"
-                model_text += f" Selection Method: {selection_method}\n"
-
-                # Show model parameters
-                params = curve.get('params', [])
-                param_names = curve.get('param_names', [])
-                model_text += f"\n  Model Parameters:\n"
-                for name, val in zip(param_names, params):
-                    model_text += f"    {name}: {val:.4f}\n"
-
-                # Show goodness of fit
-                model_text += f"\n  Goodness of Fit:\n"
-                r2 = curve.get('r_squared')
-                adj_r2 = curve.get('adjusted_r_squared')
-                rmse = curve.get('rmse')
-                aic = curve.get('aic')
-                bic = curve.get('bic')
-
-                r2_str = f"{r2:.4f}" if r2 is not None else 'N/A'
-                adj_r2_str = f"{adj_r2:.4f}" if adj_r2 is not None else 'N/A'
-                rmse_str = f"{rmse:.4f}" if rmse is not None else 'N/A'
-                aic_str = f"{aic:.2f}" if aic is not None else 'N/A'
-                bic_str = f"{bic:.2f}" if bic is not None else 'N/A'
-
-                model_text += f"    R²: {r2_str}\n"
-                model_text += f"    Adjusted R²: {adj_r2_str}\n"
-                model_text += f"    RMSE: {rmse_str}\n"
-                model_text += f"    AIC: {aic_str}\n"
-                model_text += f"    BIC: {bic_str}\n"
-
-                # Show comparison table
-                comparison_df = curve.get('comparison_df')
-                if comparison_df is not None:
-                    model_text += f"\n  All Models Comparison:\n"
-                    model_text += f"  {'Model':<20} {'Status':<15} {'BIC':<10} {'AIC':<10} {'R²':<8}\n"
-                    model_text += f"  {'-'*70}\n"
-
-                    for _, row in comparison_df.iterrows():
-                        model = row['Model']
-                        status = row['Status']
-                        bic = row.get('BIC', 'N/A')
-                        aic = row.get('AIC', 'N/A')
-                        r2 = row.get('R²', 'N/A')
-
-                        # Mark selected model
-                        marker = '→' if model == model_name else ' '
-
-                        bic_str = f"{bic:.2f}" if isinstance(bic, (int, float)) else str(bic)
-                        aic_str = f"{aic:.2f}" if isinstance(aic, (int, float)) else str(aic)
-                        r2_str = f"{r2:.4f}" if isinstance(r2, (int, float)) else str(r2)
-
-                        model_text += f"  {marker} {model:<18} {status:<15} {bic_str:<10} {aic_str:<10} {r2_str:<8}\n"
-            else:
-                model_text += f"\n  Model fitting failed\n"
-                model_text += f"  Error: {curve.get('error', 'Unknown error')}\n"
-
-            model_text += "\n" + "=" * 60 + "\n\n"
-
-        self.model_comparison.value = model_text
-
-        # Generate plots
-        self.current_plots = {}
-
-        from ..analysis.visualization import ELISAVisualizer
-        visualizer = ELISAVisualizer(concentration_unit=unit)
-
-        # Generate plots for each plate
-        for plate_name, curve_result in results.get('curve_fits', {}).items():
-            if curve_result.get('success'):
-                # Get calibrant data for this plate
-                plate_data = results['data_df'][results['data_df']['plate_name'] == plate_name]
-                calibrants = plate_data[plate_data['well_type'] == 'CALIBRANT']
-
-                self.app.log(f'Checking calibrants for {plate_name}: {len(calibrants)} calibrants found')
-
-                if not calibrants.empty and 'concentration' in calibrants.columns:
-                    concentrations = calibrants['concentration'].dropna().values
-                    od_values = calibrants.loc[calibrants['concentration'].notna(), 'od_value'].values
-
-                    self.app.log(f'Concentrations: {len(concentrations)}, OD values: {len(od_values)}')
-
-                    if len(concentrations) > 0 and len(od_values) > 0:
-                        try:
-                            # Standard curve plot
-                            std_curve_path = visualizer.create_standard_curve_plot(
-                                concentrations,
-                                od_values,
-                                curve_result,
-                                plate_name
-                            )
-                            self.app.log(f'Created standard curve plot: {std_curve_path}')
-
-
-
-                            # Store paths
-                            if plate_name not in self.current_plots:
-                                self.current_plots[plate_name] = {}
-
-                            self.current_plots[plate_name]['standard_curve'] = std_curve_path
-
-
-                        except Exception as e:
-                            self.app.log(f'Error creating plots for {plate_name}: {str(e)}')
-                    else:
-                        self.app.log(f'Skipping plots for {plate_name}: insufficient data')
-                else:
-                    self.app.log(f'Skipping plots for {plate_name}: no calibrants or concentration column missing')
-
-        # # Generate PCA analysis
-        # from ..analysis.pca import ELISAPCAAnalyzer
-        # pca_analyzer = ELISAPCAAnalyzer(n_components=2)
-
-        # # Use metadata-based PCA if column specified, otherwise use plate-based
-        # pca_column = self.app.analysis_config.get('pca_grouping_column')
-        # if pca_column and pca_column in results['data_df'].columns:
-        #     # Metadata-based PCA
-        #     pca_result = pca_analyzer.analyze_by_metadata(
-        #         results['data_df'],
-        #         grouping_column=pca_column
-        #     )
-        #     if pca_result is not None:
-        #         pca_path = visualizer.create_pca_plot(
-        #             pca_result,
-        #             title=f"PCA Analysis - Grouped by {pca_column}"
-        #         )
-        #         self.current_plots['pca'] = pca_path
-        # else:
-        #     # Multi-plate batch effect analysis (original)
-        #     pca_result = pca_analyzer.analyze_multi_plate_variation(results['data_df'])
-        #     if pca_result is not None:
-        #         pca_path = visualizer.create_pca_plot(
-        #             pca_result,
-        #             title="Multi-Plate Batch Effect Analysis"
-        #         )
-        #         self.current_plots['pca'] = pca_path
-
-        # Update plate selector with available plates
-        plate_names = [k for k in self.current_plots.keys() if k != 'pca']
-        self.app.log(f'Generated plots for {len(plate_names)} plate(s)')
-
-        if plate_names:
-            self.plate_selector.items = plate_names
-            self.plate_selector.value = plate_names[0]  # Select first plate by default
-
-    async def on_clear_results(self, widget):
-        """Clear all results."""
-        self.results_table.data = []
-        self.qc_summary.value = ""
-        self.model_comparison.value = ""
-        self.current_plots = {}
-        if hasattr(self, 'plot_imageview'):
-            self.plot_imageview.image = None
-        self.app.analysis_results = None
-        self.app.log('Analysis results cleared')
-
-    async def on_export_results(self, widget):
-        """Export results to CSV."""
-        if self.app.analysis_results is None:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog('No Results', 'Run analysis first before exporting.')
-            )
-            return
-
-        try:
-            file_path = await self.app.main_window.dialog(
-                toga.SaveFileDialog(
-                    title="Export Analysis Results",
-                    suggested_filename="elisa_analysis_results.csv",
-                    file_types=['csv']
-                )
-            )
-
-            if file_path:
-                # Export full results DataFrame
-                self.app.analysis_results['data_df'].to_csv(
-                    file_path,
-                    index=False,
-                    encoding='utf-8-sig'
-                )
-
-                await self.app.main_window.dialog(
-                    toga.InfoDialog('Success', f'Results exported to {file_path.name}')
-                )
-                self.app.log(f'Analysis results exported to {file_path.name}')
-
-        except Exception as e:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog('Export Error', str(e))
-            )
-
-    async def on_show_standard_curve(self, widget):
-        """Display standard curve plot."""
-        if not self.current_plots:
-            await self.app.main_window.dialog(
-                toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
-            )
-            return
-
-        # Get selected plate
-        selected_plate = self.plate_selector.value
-        if selected_plate and selected_plate in self.current_plots:
-            plots = self.current_plots[selected_plate]
-            if 'standard_curve' in plots:
-                path = plots['standard_curve']
-                self.plot_imageview.image = path
-                self.current_plot_type = 'standard_curve'
-                self.app.log(f'Displaying standard curve for {selected_plate}')
-                return
-
-        await self.app.main_window.dialog(
-            toga.InfoDialog('No Plot', 'Standard curve plot not available for selected plate.')
-        )
-
-   
-    async def on_show_pca(self, widget):
-        """Display PCA analysis plot."""
-        if not self.current_plots:
-            await self.app.main_window.dialog(
-                toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
-            )
-            return
-
-        if 'pca' in self.current_plots:
-            path = self.current_plots['pca']
-            self.plot_imageview.image = path
-            self.current_plot_type = 'pca'
-            self.app.log('Displaying PCA batch effect analysis')
-        else:
-            await self.app.main_window.dialog(
-                toga.InfoDialog('No PCA', 'PCA analysis requires multiple plates.')
-            )
-
-    async def on_plate_selection_changed(self, widget):
-        """Update displayed plot when plate selection changes."""
-        if not self.current_plot_type or self.current_plot_type == 'pca':
-            # Don't refresh if no plot is shown or if PCA is shown (PCA is not plate-specific)
-            return
-
-        selected_plate = self.plate_selector.value
-        if not selected_plate or selected_plate not in self.current_plots:
-            return
-
-        # Re-display the current plot type for the newly selected plate
-        plots = self.current_plots[selected_plate]
-        if self.current_plot_type in plots and plots[self.current_plot_type]:
-            path = plots[self.current_plot_type]
-            self.plot_imageview.image = path
-            self.app.log(f'Switched to {self.current_plot_type} plot for {selected_plate}')

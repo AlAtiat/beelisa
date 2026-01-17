@@ -325,26 +325,6 @@ class AnalysisEngine:
         blank_od = blanks['od_value'].dropna()
         if len(blank_od) < 3:
             return None, None        
-        # if len(blank_concentrations) < 3:
-        #     # If concentrations not available, convert OD values
-        #     blank_od = blanks['od_value'].dropna()
-        #     if len(blank_od) < 3:
-        #         return None, None
-
-        #     # Convert OD to concentration using inverse
-        #     model = curve_result.get('model')
-        #     params = curve_result.get('params')
-
-        #     if model and params is not None:
-        #         blank_concs = []
-        #         for od in blank_od:
-        #             conc = model.inverse(od, params)
-        #             if conc is not None and np.isfinite(conc):
-        #                 # Apply dilution factor
-        #                 conc_corrected = conc * self.dilution_factor
-        #                 blank_concs.append(conc_corrected)
-        #         blank_concentrations = pd.Series(blank_concs)
-
 
         # Calculate LOD and LOQ using concentration values
         mean_blank = blank_od.mean()

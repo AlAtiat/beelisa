@@ -44,7 +44,7 @@ class DataLoader:
 
             self.app.metadata_df = metadata
 
-            parser.try_merge()
+            self.app.refresh_data()
             
             # Store as separate metadata attribute
             if not hasattr(self, 'metadata'):
@@ -80,7 +80,7 @@ class DataLoader:
                 parsed_data = parser.parse_id_excel(str(file_path))
             else:
                 return False, "Unsupported file format", None
-            parser.try_merge()
+            self.app.refresh_data()
 
             self.app.log(f"Plate ID file loaded successfully as {file_path.suffix.lstrip('.')} format")
             return True, "Plate ID file loaded successfully", parsed_data
@@ -116,7 +116,7 @@ class DataLoader:
                 parsed_data = parser.parse_raw_excel(str(file_path))
             else:
                 return False, "Unsupported file format", None
-            parser.try_merge()
+            self.app.refresh_data()
 
             self.app.log(f"Raw ELISA data loaded successfully as {file_path.suffix.lstrip('.')} format")
             return True, "Raw ELISA data loaded successfully", parsed_data
