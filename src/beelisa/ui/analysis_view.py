@@ -34,22 +34,23 @@ class AnalysisView:
     def create_layout(self):
         """Create analysis view layout."""
         
-        upper_container = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        under_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        under_container = toga.ScrollContainer(content=under_box, flex=1)
-        container = toga.SplitContainer(content=[upper_container, under_container], style=Pack(direction=COLUMN, flex=1, margin=10))
+        left_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
+        right_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        right_container = toga.ScrollContainer(content=right_box, flex=1)
+        container = toga.SplitContainer(content=[left_container, right_container], style=Pack(direction=COLUMN, flex=1, margin=10))
 
         # Configuration section
         config = self.create_configuration_section()
-        upper_container.add(config)
+        left_box.add(config)
 
         # Action buttons
         buttons = self.create_action_buttons()
-        upper_container.add(buttons)
+        left_box.add(buttons)
 
         # Plate Grouping
         grouping = self.create_plate_grouping_section()
-        under_box.add(grouping)
+        right_box.add(grouping)
         self.container = container
 
         return container
@@ -160,6 +161,20 @@ class AnalysisView:
         self.heatmap_size_var.value = 'None'
         heatmap_size_box.add(heatmap_size_label, self.heatmap_size_var)
         config_box.add(heatmap_size_box)
+
+        # Heatmap label variable (for string metadata like sample_id, condition)
+        heatmap_label_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        heatmap_label_label = toga.Label(
+            'Label Variable:',
+            style=Pack(margin=5, width=150)
+        )
+        self.heatmap_label_var = toga.Selection(
+            items=['None'],
+            style=Pack(flex=1, margin=5)
+        )
+        self.heatmap_label_var.value = 'None'
+        heatmap_label_box.add(heatmap_label_label, self.heatmap_label_var)
+        config_box.add(heatmap_label_box)
 
         # Heatmap colormap
         heatmap_cmap_box = toga.Box(style=Pack(direction=ROW, margin=5))
@@ -284,6 +299,10 @@ class AnalysisView:
         if hasattr(self, 'heatmap_size_var') and self.heatmap_size_var:
             self.heatmap_size_var.items = ['None'] + display_items
             self.heatmap_size_var.value = 'None'
+
+        if hasattr(self, 'heatmap_label_var') and self.heatmap_label_var:
+            self.heatmap_label_var.items = ['None'] + display_items
+            self.heatmap_label_var.value = 'None'
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -543,11 +562,13 @@ class AnalysisView:
         # Get heatmap settings - convert display names back to column names
         heatmap_color_display = self.heatmap_color_var.value if hasattr(self, 'heatmap_color_var') else 'OD Value'
         heatmap_size_display = self.heatmap_size_var.value if hasattr(self, 'heatmap_size_var') else 'None'
+        heatmap_label_display = self.heatmap_label_var.value if hasattr(self, 'heatmap_label_var') else 'None'
         heatmap_colormap = self.heatmap_colormap.value if hasattr(self, 'heatmap_colormap') else 'viridis'
 
         mapping = getattr(self, 'column_name_mapping', {})
         heatmap_color_var = mapping.get(heatmap_color_display, 'concentration_dilution_corrected')
         heatmap_size_var = mapping.get(heatmap_size_display, 'None') if heatmap_size_display != 'None' else 'None'
+        heatmap_label_var = mapping.get(heatmap_label_display, 'None') if heatmap_label_display != 'None' else 'None'
 
         # Update app config
         self.app.analysis_config = {
@@ -557,6 +578,7 @@ class AnalysisView:
             'concentration_unit': concentration_unit,
             'heatmap_color_var': heatmap_color_var,
             'heatmap_size_var': heatmap_size_var,
+            'heatmap_label_var': heatmap_label_var,
             'heatmap_colormap': heatmap_colormap
         }
 

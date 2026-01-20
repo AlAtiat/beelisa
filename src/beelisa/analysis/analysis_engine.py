@@ -280,8 +280,10 @@ class AnalysisEngine:
         return plate_data
 
     def _compute_qc_metrics(self, plate_data):
-        """Compute QC metrics per well type."""
+        """Compute QC metrics per well type with correct replicate CV."""
         qc = {}
+        MIN_FOR_CV = 2
+        NEAR_ZERO_THRESHOLD = 0.01  # Below this mean, CV is unreliable
 
         for well_type in ['NEGATIVE_CONTROL', 'CALIBRANT', 'SAMPLE', 'BLANK', 'POSITIVE_CONTROL']:
             wells = plate_data[plate_data['well_type'] == well_type]
@@ -291,23 +293,54 @@ class AnalysisEngine:
                 continue
 
             mean_od = od_values.mean()
-            std_od = od_values.std()
-            cv_percent = (std_od / mean_od * 100) if mean_od > 0 else np.inf
+            std_od = od_values.std() if len(od_values) >= MIN_FOR_CV else None
+            median_cv = None
 
-            # Define CV% thresholds
-            if well_type == 'CALIBRANT':
-                threshold = 15
-            elif well_type == 'NEGATIVE_CONTROL':
-                threshold = 30
+            # Compute replicate CV correctly based on well type
+            if well_type == 'CALIBRANT' and 'order' in wells.columns:
+                # CV per concentration level (order), report worst CV
+                replicate_cvs = []
+                for order_val in wells['order'].dropna().unique():
+                    order_wells = wells[wells['order'] == order_val]['od_value'].dropna()
+                    if len(order_wells) >= MIN_FOR_CV:
+                        m = order_wells.mean()
+                        if m > NEAR_ZERO_THRESHOLD:
+                            cv = (order_wells.std(ddof=1) / m) * 100
+                            replicate_cvs.append(cv)
+                cv_percent = max(replicate_cvs) if replicate_cvs else None
+                median_cv = np.median(replicate_cvs) if replicate_cvs else None
+
+            elif well_type == 'SAMPLE' and 'sample_id' in wells.columns:
+                # CV per sample_id (replicates only)
+                replicate_cvs = []
+                for sid in wells['sample_id'].dropna().unique():
+                    sample_wells = wells[wells['sample_id'] == sid]['od_value'].dropna()
+                    if len(sample_wells) >= MIN_FOR_CV:
+                        m = sample_wells.mean()
+                        if m > NEAR_ZERO_THRESHOLD:
+                            cv = (sample_wells.std() / m) * 100
+                            replicate_cvs.append(cv)
+                cv_percent = max(replicate_cvs) if replicate_cvs else None
+                median_cv = np.median(replicate_cvs) if replicate_cvs else None
+
             else:
-                threshold = 20
+                # Controls/Blank: CV across all replicates (with n>=2 check)
+                if len(od_values) >= MIN_FOR_CV and mean_od > NEAR_ZERO_THRESHOLD:
+                    cv_percent = (std_od / mean_od) * 100
+                else:
+                    cv_percent = None
+
+            # Thresholds
+            threshold = {'CALIBRANT': 15, 'NEGATIVE_CONTROL': 30}.get(well_type, 20)
+            high_cv = cv_percent is not None and cv_percent > threshold
 
             qc[well_type] = {
                 'n_wells': len(od_values),
                 'mean_od': mean_od,
                 'std_od': std_od,
                 'cv_percent': cv_percent,
-                'high_cv_warning': cv_percent > threshold
+                'median_cv': median_cv,
+                'high_cv_warning': high_cv
             }
 
         return qc
@@ -399,7 +432,7 @@ class AnalysisEngine:
                 continue
 
             if conc < lod:
-                statuses.append('Negative (below LOD)')
+                statuses.append('Below detection (LOD)')
             elif lod <= conc < loq:
                 statuses.append('Borderline (LOD to LOQ)')
             else:

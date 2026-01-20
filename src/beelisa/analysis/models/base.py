@@ -6,6 +6,62 @@ from typing import Optional
 import numpy as np
 
 
+# more detail information about each model for INFO
+MODEL_INFO = {
+    "4PL": {
+        "full_name": "4-Parameter Logistic",
+        "equation": "y = D + (A-D) / (1 + (x/C)^B)",
+        "description": "The 4PL model assumes the curve is symmetrical around the inflection point.",
+        "literature": "Gottschalk & Dunn, J Immunol Methods (2005)",
+        "params": {"A": "Max asymptote (high OD)", "B": "Hill slope (steepness)", "C": "EC50 (inflection)", "D": "Min asymptote (low OD)"}
+    },
+    "5PL": {
+        "full_name": "5-Parameter Logistic",
+        "equation": "y = D + (A-D) / (1 + (x/C)^B)^M",
+        "description": "Asymmetric sigmoidal curve. Adds asymmetry parameter M for curves with unequal upper/lower shoulders.",
+        "literature": "Gottschalk & Dunn, J Immunol Methods (2005)",
+        "params": {"A": "Max asymptote", "B": "Hill slope", "C": "EC50", "D": "Min asymptote", "M": "Asymmetry factor"}
+    },
+    "Linear": {
+        "full_name": "Linear",
+        "equation": "y = mx + b",
+        "description": "Linear calibration model valid only over narrow concentration ranges with proportional response.",
+        "literature": "Harris, Quantitative Chemical Analysis (2010)",
+        "params": {"m": "Slope (sensitivity)", "b": "Y-intercept (background)"}
+    },
+    "Log-Linear": {
+        "full_name": "Log-Linear",
+        "equation": "y = m*log(x) + b",
+        "description": "Linear relationship in logarithmic concentration space, suitable for wide dynamic ranges without saturation modeling.",
+        "literature": "Standard calibration method for wide-range assays",
+        "params": {"m": "Slope in log-space", "b": "Y-intercept"}
+    },
+    "Exponential": {
+        "full_name": "Exponential",
+        "equation": "y = a*exp(b*x) + c",
+        "description": "Exponential growth or decay model describing first-order kinetic behavior.",
+        "literature": "Motulsky & Christopoulos (2004). Fitting Models to Biological Data.",
+        "params": {"a": "Amplitude", "b": "Rate constant", "c": "Offset/baseline"}
+    }
+}
+
+# Information about model selection criteria
+SELECTION_INFO = {
+    "bic": {
+        "name": "BIC (Bayesian Information Criterion)",
+        "formula": "BIC = n*ln(RSS/n) + k*ln(n)",
+        "description": "Model selection should prefer simpler models unless the data provide sufficient evidence to support higher dimensionality (Penalizes complexity). Gideon Schwarz (1978)",
+        "why": "BIC applies a sample-size dependent penalty on model dimensionality derived from Bayesian model selection theory, preventing systematic overfitting inherent to maximum likelihood estimation. Schwarz, G. (1978), Burnham, K. P., & Anderson, D. R. (2002). Model Selection and Multimodel Inference."
+    },
+    "aic": {
+        "name": "AIC (Akaike Information Criterion)",
+        "formula": "AIC = n*ln(RSS/n) + 2k",
+        "description": "Information-theoretic model selection criterion that balances goodness of fit with model complexity by penalizing the number of parameters. Hirotugu Akaike (1974) Akaike, H. A new look at the statistical model identification",
+        "why": "Derived to minimize expected information loss between the fitted model and the true data-generating process, AIC favors models with strong predictive performance and may retain additional parameters when they improve approximation accuracy. Akaike, H. 1974."
+    }
+}
+
+
 @dataclass
 class FitResult:
     """Container for curve fitting results with comprehensive diagnostics."""
@@ -178,7 +234,11 @@ class CurveModel(ABC):
                 aic=None,
                 bic=None,
                 rmse=None,
-                error=f'Need at least {self.num_params} points, got {n}'
+                error=(
+                    f"Insufficient calibration points for model fitting (n ≤ k). "
+                    f"Number of model parameters (k) = {self.num_params}, "
+                    f"number of calibrants (n) = {n}. "
+                )            
             )
 
         try:

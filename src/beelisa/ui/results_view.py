@@ -26,11 +26,11 @@ class ResultsView:
         self.group_name_input = None
 
     def create_layout(self):
-        """Create analysis view layout with config (left) and plate grouping (right)."""
+        """Create result view layout """
 
         # Main container
-        main_container = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10))
-
+        box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10))
+        container = toga.ScrollContainer(content=box, style=Pack(flex=1))
 
         # Results section (bottom)
         results_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
@@ -38,9 +38,9 @@ class ResultsView:
         results_box.add(results)
         results_scroll = toga.ScrollContainer(content=results_box, style=Pack(flex=1))
 
-        main_container.add(results_scroll)
+        box.add(results_scroll)
 
-        return main_container
+        return container
 
 
     def create_results_section(self):
@@ -241,6 +241,8 @@ class ResultsView:
         self.qc_summary.value = qc_text
 
         # Update model comparison
+        from ..analysis.models.base import MODEL_INFO, SELECTION_INFO
+
         model_text = "Model Comparison & Selection\n" + "=" * 60 + "\n\n"
 
         for plate, curve in results.get('curve_fits', {}).items():
@@ -250,16 +252,30 @@ class ResultsView:
             if curve['success']:
                 # Show selected model
                 model_name = curve.get('model_name', 'Unknown')
-                selection_method = curve.get('selection_method')
-                model_text += f"\n Selected Model: {model_name}\n"
-                model_text += f" Selection Method: {selection_method}\n"
+                selection_method = curve.get('selection_method', 'bic')
+                model_info = MODEL_INFO.get(model_name, {})
+                selection_info = SELECTION_INFO.get(selection_method, {})
 
-                # Show model parameters
+                model_text += f"\n SELECTED: {model_info.get('full_name', model_name)}\n"
+                model_text += f" Equation: {model_info.get('equation', 'N/A')}\n"
+                model_text += f" {model_info.get('description', '')}\n"
+                model_text += f" Reference: {model_info.get('literature', 'N/A')}\n"
+
+                # Selection rationale
+                model_text += "\n WHY SELECTED:\n"
+                model_text += f" Criterion: {selection_info.get('name', selection_method)}\n"
+                model_text += f" {selection_info.get('description', '')}\n"
+                model_text += f" {selection_info.get('why', '')}\n"
+
+                # Show model parameters with descriptions
                 params = curve.get('params', [])
                 param_names = curve.get('param_names', [])
+                param_descriptions = model_info.get('params', {})
                 model_text += "\n  Model Parameters:\n"
                 for name, val in zip(param_names, params):
-                    model_text += f"    {name}: {val:.4f}\n"
+                    desc = param_descriptions.get(name, '')
+                    desc_str = f" ({desc})" if desc else ""
+                    model_text += f"    {name}: {val:.4f}{desc_str}\n"
 
                 # Show goodness of fit
                 model_text += "\n  Goodness of Fit:\n"
@@ -275,11 +291,11 @@ class ResultsView:
                 aic_str = f"{aic:.2f}" if aic is not None else 'N/A'
                 bic_str = f"{bic:.2f}" if bic is not None else 'N/A'
 
-                model_text += f"    R²: {r2_str}\n"
-                model_text += f"    Adjusted R²: {adj_r2_str}\n"
-                model_text += f"    RMSE: {rmse_str}\n"
-                model_text += f"    AIC: {aic_str}\n"
-                model_text += f"    BIC: {bic_str}\n"
+                model_text += f"    R²: {r2_str} (variance explained)\n"
+                model_text += f"    Adjusted R²: {adj_r2_str} (penalized for parameters)\n"
+                model_text += f"    RMSE: {rmse_str} (prediction error)\n"
+                model_text += f"    AIC: {aic_str} (lower = better fit)\n"
+                model_text += f"    BIC: {bic_str} (lower = better fit, penalizes complexity)\n"
 
                 # Show comparison table
                 comparison_df = curve.get('comparison_df')
@@ -393,6 +409,7 @@ class ResultsView:
         # Generate heatmaps for all plates using config from analysis_view
         heatmap_color_var = self.app.analysis_config.get('heatmap_color_var', 'od_value')
         heatmap_size_var = self.app.analysis_config.get('heatmap_size_var', 'None')
+        heatmap_label_var = self.app.analysis_config.get('heatmap_label_var', 'None')
         heatmap_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
 
         all_plate_names = list(results['data_df']['plate_name'].unique())
@@ -404,7 +421,8 @@ class ResultsView:
                     plate_name=plate_name,
                     colormap=heatmap_colormap,
                     show_values=True,
-                    size_column=heatmap_size_var if heatmap_size_var != 'None' else None
+                    size_column=heatmap_size_var if heatmap_size_var != 'None' else None,
+                    label_column=heatmap_label_var if heatmap_label_var != 'None' else None
                 )
                 if plate_name not in self.current_plots:
                     self.current_plots[plate_name] = {}

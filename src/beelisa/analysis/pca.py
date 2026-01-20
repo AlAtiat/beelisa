@@ -86,7 +86,7 @@ class ELISAPCAAnalyzer:
             labels.append(plate_to_group[plate_name])
 
         if len(feature_rows) < 3:
-            return None  # Need at least 3 plates for PCA
+            return None  # Need at least 3 plates for PCA because of lod loq
 
         # Build feature matrix
         df = pd.DataFrame(feature_rows)
@@ -117,7 +117,6 @@ class ELISAPCAAnalyzer:
         Uses chi-square distribution with df=2 for proper 2D confidence scaling.
         For 95% confidence: chi2(2, 0.95) = 5.991, scale = sqrt(5.991) = 2.448
 
-        Note: Using n_std=2 would only give ~86.5% confidence in 2D, not 95%.
 
         Args:
             scores: PCA scores array (n_samples x 2)

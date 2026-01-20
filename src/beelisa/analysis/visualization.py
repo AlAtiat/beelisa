@@ -249,7 +249,8 @@ class ELISAVisualizer:
         plate_name: str = "Plate",
         colormap: str = 'viridis',
         show_values: bool = True,
-        size_column: Optional[str] = None
+        size_column: Optional[str] = None,
+        label_column: Optional[str] = None
     ) -> str:
         """
         Create 96-well plate heatmap with round wells.
@@ -261,6 +262,7 @@ class ELISAVisualizer:
             colormap: Matplotlib colormap name
             show_values: Whether to display values in wells
             size_column: Optional column for circle size (dual variable encoding)
+            label_column: Optional column for text label (strings like sample_id)
 
         Returns:
             Path to PNG file
@@ -321,6 +323,24 @@ class ELISAVisualizer:
                             if size_matrix[i, j] != 0.42:
                                 size_matrix[i, j] = 0.2 + 0.25 * (size_matrix[i, j] - smin) / (smax - smin)
 
+        # Build label matrix for string metadata (sample_id, condition, etc.)
+        label_matrix = None
+        if label_column and label_column != 'None' and label_column in plate_data.columns:
+            label_matrix = np.empty((8, 12), dtype=object)
+            label_matrix[:] = None
+            for _, row in plate_data.iterrows():
+                well_id = str(row.get('well_id', ''))
+                if len(well_id) >= 2:
+                    try:
+                        row_idx = rows.index(well_id[0].upper())
+                        col_idx = int(well_id[1:]) - 1
+                        if 0 <= col_idx < 12:
+                            label_val = row.get(label_column)
+                            if pd.notna(label_val):
+                                label_matrix[row_idx, col_idx] = str(label_val)[:8]  # Truncate to 8 chars
+                    except (ValueError, IndexError):
+                        continue
+
         # Create figure
         fig, ax = plt.subplots(figsize=(14, 8))
         ax.set_xlim(-0.6, 11.6)
@@ -359,15 +379,19 @@ class ELISAVisualizer:
                         threshold = (vmin + vmax) / 2
                         text_color = 'white' if value > threshold else 'black'
 
-                        # Build text: color value, optionally add size value
+                        # Build text: color value, size value, and label
                         display_text = f'{value:.1f}'
                         if original_size_matrix is not None:
                             orig_size = original_size_matrix[i, j]
                             if orig_size != 0.42:  # 0.42 is default (no size data)
                                 display_text += f'\n({orig_size:.1f})'
+                        if label_matrix is not None and label_matrix[i, j] is not None:
+                            display_text += f'\n{label_matrix[i, j]}'
 
+                        # Adjust font size if showing multiple lines
+                        fontsize = 5 if (label_matrix is not None or original_size_matrix is not None) else 6
                         ax.text(j, i, display_text, ha='center', va='center',
-                                fontsize=6, color=text_color, fontweight='bold')
+                                fontsize=fontsize, color=text_color, fontweight='bold')
 
         # Colorbar use display names
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
