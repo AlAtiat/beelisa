@@ -1,19 +1,19 @@
-"""Principal Component Analysis for ELISA batch effect detection and sample clustering."""
+"""Principal Component Analysis for ELISA plate-level QC metrics."""
 
 from typing import Optional, Dict, List
 import numpy as np
 import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
+from scipy.stats import chi2
 
 
 class ELISAPCAAnalyzer:
     """
-    PCA analysis for ELISA data.
+    PCA analysis for ELISA plate-level QC metrics.
 
-    Two main use cases:
-    1. Sample clustering: Identify outliers and cluster similar samples
-    2. Batch effect detection: Detect plate-to-plate systematic variation
+    Performs PCA on plate-level features (LOD, LOQ, R², RMSE, BIC, CV, curve params)
+    to detect batch effects and protocol differences between plate groups.
     """
 
     def __init__(self, n_components: int = 2):
@@ -21,300 +21,159 @@ class ELISAPCAAnalyzer:
         Initialize PCA analyzer.
 
         Args:
-            n_components: Number of principal components to compute (default: 2 for visualization)
+            n_components: Number of principal components (default: 2 for visualization)
         """
         self.n_components = n_components
         self.scaler = StandardScaler()
         self.pca = PCA(n_components=n_components)
 
-    def analyze_samples(
+    def analyze_plates(
         self,
-        results_df: pd.DataFrame,
-        use_dilution_corrected: bool = True
+        results: Dict,
+        plate_groups: Dict[str, List[str]]
     ) -> Optional[Dict]:
         """
-        Perform PCA on sample concentrations for clustering and outlier detection.
+        Plate-level PCA using QC metrics.
+
+        Each plate = one observation. Features: LOD, LOQ, R², RMSE, BIC, CV, curve params.
+        Groups plates by plate_group for coloring and ellipses.
 
         Args:
-            results_df: DataFrame with analysis results (must have 'concentration' columns)
-            use_dilution_corrected: Use dilution-corrected concentrations (default: True)
+            results: Analysis results dict with curve_fits, lod_loq, qc_summary
+            plate_groups: Dict mapping group_name -> list of plate_names
 
         Returns:
-            Dictionary with:
-                - scores: PCA scores (n_samples × n_components)
-                - loadings: PCA loadings (feature contributions)
-                - variance_explained: Variance explained by each PC
-                - labels: Sample labels for plotting
-                - feature_names: Names of features used
-            Or None if insufficient data
+            Dict with scores, labels (group names), variance_explained, feature_names
+            Or None if insufficient data (< 3 plates)
         """
-        # Filter to only SAMPLE wells with valid concentrations
-        samples = results_df[results_df['well_type'] == 'SAMPLE'].copy()
+        # Build plate-to-group mapping
+        plate_to_group = {}
+        for group, plates in plate_groups.items():
+            for plate in plates:
+                plate_to_group[plate] = group
 
-        conc_col = 'concentration_dilution_corrected' if use_dilution_corrected else 'concentration'
+        # Extract features for each plate
+        feature_rows = []
+        labels = []
 
-        if conc_col not in samples.columns:
-            return None
+        for plate_name, curve in results.get('curve_fits', {}).items():
+            if plate_name not in plate_to_group:
+                continue
+            if not curve.get('success'):
+                continue
 
-        # Filter out invalid concentrations
-        valid_samples = samples.dropna(subset=[conc_col])
-        valid_samples = valid_samples[np.isfinite(valid_samples[conc_col])]
+            lod_loq = results.get('lod_loq', {}).get(plate_name, {})
+            qc = results.get('qc_summary', {}).get(plate_name, {})
 
-        if len(valid_samples) < 3:
-            return None  # Need at least 3 samples for PCA
+            # Build feature vector
+            row = {
+                'log_lod': np.log10(max(lod_loq.get('lod_od', 1e-10), 1e-10)),
+                'log_loq': np.log10(max(lod_loq.get('loq_od', 1e-10), 1e-10)),
+                'r_squared': curve.get('r_squared', 0),
+                'rmse': curve.get('rmse', 0),
+                'bic': curve.get('bic', 0),
+                'cv_calibrant': qc.get('CALIBRANT', {}).get('cv_percent', 0),
+            }
 
-        # For now, we'll use each sample as a single feature
-        # In a more advanced version, we could pivot by sample_id if there are replicates
-        # For simplicity, treat each well as an observation
+            # Add curve parameters (padded to 4 for consistency across models)
+            params = curve.get('params', [])
+            for i, p in enumerate(params[:4]):
+                row[f'param_{i}'] = p
+            for i in range(len(params), 4):
+                row[f'param_{i}'] = 0
 
-        # Create feature matrix (each row = sample, each column = a feature)
-        # Since we have single concentration values, we need to create features
-        # Option: Use plate_name as grouping and concentration as feature
-        # For initial implementation, let's use a simple approach:
-        # Features could be: concentration, od_value, and potentially others
+            feature_rows.append(row)
+            labels.append(plate_to_group[plate_name])
 
-        feature_cols = [conc_col]
-        if 'od_value' in valid_samples.columns:
-            feature_cols.append('od_value')
+        if len(feature_rows) < 3:
+            return None  # Need at least 3 plates for PCA
 
-        X = valid_samples[feature_cols].values
+        # Build feature matrix
+        df = pd.DataFrame(feature_rows)
+        feature_names = list(df.columns)
+        X = df.values
 
-        if X.shape[0] < self.n_components:
-            return None  # Not enough samples for requested components
-
-        # Standardize features
-        X_scaled = self.scaler.fit_transform(X)
-
-        # Fit PCA
-        scores = self.pca.fit_transform(X_scaled)
-
-        # Create labels for samples
-        if 'sample_id' in valid_samples.columns:
-            labels = valid_samples['sample_id'].values
-        elif 'well_position' in valid_samples.columns:
-            labels = valid_samples['well_position'].values
-        else:
-            labels = [f'Sample {i+1}' for i in range(len(valid_samples))]
-
-        return {
-            'scores': scores,
-            'loadings': self.pca.components_,
-            'variance_explained': self.pca.explained_variance_ratio_,
-            'labels': labels,
-            'feature_names': feature_cols
-        }
-
-    def analyze_multi_plate_variation(
-        self,
-        results_df: pd.DataFrame
-    ) -> Optional[Dict]:
-        """
-        Perform PCA on calibrant OD values to detect batch effects across plates.
-
-        Creates a pivot table where:
-        - Rows = calibrant orders (concentration levels)
-        - Columns = plate names
-        - Values = mean OD values
-
-        PCA reveals if certain plates cluster together (batch effects).
-
-        Args:
-            results_df: DataFrame with analysis results
-
-        Returns:
-            Dictionary with:
-                - scores: PCA scores (n_plates × n_components)
-                - loadings: PCA loadings
-                - variance_explained: Variance explained by each PC
-                - labels: Plate names for plotting
-                - pivot_table: The data matrix used for PCA
-            Or None if insufficient data
-        """
-        # Filter to only CALIBRANT wells
-        calibrants = results_df[results_df['well_type'] == 'CALIBRANT'].copy()
-
-        if calibrants.empty:
-            return None
-
-        # Check if we have multiple plates
-        if 'plate_name' not in calibrants.columns:
-            return None
-
-        plate_names = calibrants['plate_name'].unique()
-        if len(plate_names) < 2:
-            return None  # Need at least 2 plates for batch comparison
-
-        # Create pivot table: orders × plates
-        if 'order' in calibrants.columns and 'od_value' in calibrants.columns:
-            pivot = calibrants.pivot_table(
-                index='order',
-                columns='plate_name',
-                values='od_value',
-                aggfunc='mean'
-            )
-        else:
-            return None
-
-        # Remove rows/columns with all NaN
-        pivot = pivot.dropna(how='all', axis=0).dropna(how='all', axis=1)
-
-        # Fill remaining NaN with column mean (imputation)
-        pivot = pivot.fillna(pivot.mean())
-
-        if pivot.shape[0] < 2 or pivot.shape[1] < 2:
-            return None
-
-        # Transpose so plates are rows (observations)
-        X = pivot.T.values
-
-        if X.shape[0] < self.n_components:
-            # Reduce n_components if we don't have enough plates
-            n_comp = min(self.n_components, X.shape[0])
-            pca = PCA(n_components=n_comp)
-        else:
-            pca = self.pca
-
-        # Standardize features
-        X_scaled = self.scaler.fit_transform(X)
-
-        # Fit PCA
-        scores = pca.fit_transform(X_scaled)
-
-        return {
-            'scores': scores,
-            'loadings': pca.components_,
-            'variance_explained': pca.explained_variance_ratio_,
-            'labels': pivot.columns.values,  # Plate names
-            'pivot_table': pivot
-        }
-
-    def analyze_by_metadata(
-        self,
-        data_df: pd.DataFrame,
-        grouping_column: str,
-        feature_columns: Optional[List[str]] = None
-    ) -> Optional[Dict]:
-        """
-        Perform PCA grouped by metadata column.
-
-        Allows analyzing samples based on any metadata column (e.g., treatment,
-        timepoint, condition) instead of just plate-based batch effects.
-
-        Args:
-            data_df: Analysis results dataframe
-            grouping_column: Column to use for grouping (e.g., 'treatment', 'sample_id')
-            feature_columns: Columns to use as features (default: OD and concentration)
-
-        Returns:
-            Dictionary with:
-                - scores: PCA scores (n_samples × n_components)
-                - labels: Group labels from metadata column
-                - variance_explained: Variance explained by each PC
-                - loadings: PCA loadings
-                - feature_names: Names of features used
-                - grouping_column: Name of the grouping column used
-            Or None if insufficient data
-        """
-        # Filter samples only
-        samples = data_df[data_df['well_type'] == 'SAMPLE'].copy()
-
-        if samples.empty or grouping_column not in samples.columns:
-            return None
-
-        # Default features: od_value and concentration_dilution_corrected
-        if feature_columns is None:
-            feature_columns = ['od_value', 'concentration_dilution_corrected']
-
-        # Filter to only include existing columns
-        feature_columns = [col for col in feature_columns if col in samples.columns]
-
-        if not feature_columns:
-            return None
-
-        # Prepare feature matrix (drop rows with any NaN in features)
-        X = samples[feature_columns].dropna()
-
-        if len(X) < 3:
-            return None  # Need at least 3 samples for meaningful PCA
-
-        # Get labels for the samples that have valid features
-        labels = samples.loc[X.index, grouping_column].values
-
-        # Standardize and perform PCA
+        # Standardize and fit PCA
         X_scaled = self.scaler.fit_transform(X)
         scores = self.pca.fit_transform(X_scaled)
 
         return {
             'scores': scores,
-            'labels': labels,
+            'labels': np.array(labels),
             'variance_explained': self.pca.explained_variance_ratio_,
             'loadings': self.pca.components_,
-            'feature_names': feature_columns,
-            'grouping_column': grouping_column
+            'feature_names': feature_names
         }
 
-    def detect_outliers(
+    def compute_confidence_ellipses(
         self,
-        pca_result: Dict,
-        n_std: float = 2.0
-    ) -> np.ndarray:
+        scores: np.ndarray,
+        labels: np.ndarray,
+        confidence: float = 0.95
+    ) -> List[Dict]:
         """
-        Detect outliers in PCA space using Mahalanobis-like distance.
+        Compute 95% confidence ellipse parameters for each group.
+
+        Uses chi-square distribution with df=2 for proper 2D confidence scaling.
+        For 95% confidence: chi2(2, 0.95) = 5.991, scale = sqrt(5.991) = 2.448
+
+        Note: Using n_std=2 would only give ~86.5% confidence in 2D, not 95%.
 
         Args:
-            pca_result: Result from analyze_samples() or analyze_multi_plate_variation()
-            n_std: Number of standard deviations for outlier threshold (default: 2.0)
+            scores: PCA scores array (n_samples x 2)
+            labels: Group labels for each sample
+            confidence: Confidence level (default: 0.95)
 
         Returns:
-            Boolean array indicating outliers (True = outlier)
+            List of dicts with keys: label, center, width, height, angle
         """
-        scores = pca_result.get('scores')
-        if scores is None:
-            return np.array([])
+        chi2_val = chi2.ppf(confidence, df=2)
+        scale = np.sqrt(chi2_val)
 
-        # Calculate distance from origin in PC space
-        # Simple approach: Euclidean distance in standardized PC space
-        distances = np.sqrt(np.sum(scores ** 2, axis=1))
+        ellipses = []
+        unique_labels = np.unique(labels)
 
-        # Outlier threshold: mean + n_std * std
-        threshold = np.mean(distances) + n_std * np.std(distances)
+        for lbl in unique_labels:
+            mask = labels == lbl
+            group_scores = scores[mask]
 
-        outliers = distances > threshold
-        return outliers
+            if len(group_scores) < 3:
+                continue  # Need at least 3 points for covariance
 
-    def get_top_contributing_features(
-        self,
-        pca_result: Dict,
-        pc_index: int = 0,
-        n_features: int = 5
-    ) -> List[tuple]:
-        """
-        Get top contributing features for a given principal component.
+            # Mean (center of ellipse)
+            center = group_scores.mean(axis=0)
 
-        Args:
-            pca_result: Result from PCA analysis
-            pc_index: Which PC to analyze (0 = PC1, 1 = PC2, etc.)
-            n_features: Number of top features to return
+            # Covariance matrix
+            cov = np.cov(group_scores.T)
 
-        Returns:
-            List of (feature_name, loading) tuples sorted by absolute loading
-        """
-        loadings = pca_result.get('loadings')
-        feature_names = pca_result.get('feature_names')
+            try:
+                # Eigendecomposition
+                eigenvalues, eigenvectors = np.linalg.eigh(cov)
 
-        if loadings is None or feature_names is None:
-            return []
+                # Sort by eigenvalue descending (largest first for major axis)
+                order = eigenvalues.argsort()[::-1]
+                eigenvalues = eigenvalues[order]
+                eigenvectors = eigenvectors[:, order]
 
-        if pc_index >= loadings.shape[0]:
-            return []
+                # Check for valid eigenvalues
+                if np.any(eigenvalues <= 0):
+                    continue
 
-        # Get loadings for this PC
-        pc_loadings = loadings[pc_index, :]
+                # Ellipse dimensions (scaled by chi-square for proper 95% CI)
+                width = 2 * scale * np.sqrt(eigenvalues[0])   # major axis
+                height = 2 * scale * np.sqrt(eigenvalues[1])  # minor axis
 
-        # Sort by absolute value
-        sorted_indices = np.argsort(np.abs(pc_loadings))[::-1]
+                # Angle from major eigenvector (first column after sorting)
+                angle = np.degrees(np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0]))
 
-        # Get top n
-        top_indices = sorted_indices[:n_features]
+                ellipses.append({
+                    'label': lbl,
+                    'center': center,
+                    'width': width,
+                    'height': height,
+                    'angle': angle
+                })
+            except Exception:
+                continue
 
-        return [(feature_names[i], pc_loadings[i]) for i in top_indices]
+        return ellipses

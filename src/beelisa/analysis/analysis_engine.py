@@ -249,17 +249,27 @@ class AnalysisEngine:
 
         for _, row in plate_data.iterrows():
             od_value = row['od_value']
-
+            well_type = row['well_type']
+            
             if pd.isna(od_value):
                 concentrations.append(None)
                 concentrations_corrected.append(None)
                 continue
 
-            # Predict concentration from OD using model's inverse method
-            conc = model.inverse(od_value, params)
+            # Wrap inverse call in try-except for robustness
+            try:
+                conc = model.inverse(od_value, params)
+                # Validate result
+                if conc is None or not np.isfinite(conc) or conc < 0:
+                    conc = None
+            except Exception:
+                conc = None
 
-            # Apply dilution factor
-            conc_corrected = conc * self.dilution_factor if conc is not None and np.isfinite(conc) else None
+            # Apply dilution factor for samples only and keep oter well types same concentrations
+            if conc is not None and well_type == 'SAMPLE':
+                conc_corrected = conc * self.dilution_factor
+            else:
+                conc_corrected = conc
 
             concentrations.append(conc)
             concentrations_corrected.append(conc_corrected)

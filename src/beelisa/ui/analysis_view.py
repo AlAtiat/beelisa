@@ -3,6 +3,20 @@ from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 
 
+# Column name to display name mapping
+COLUMN_DISPLAY_NAMES = {
+    'concentration_dilution_corrected': 'Concentration',
+    'od_value': 'OD Value',
+    'concentration': 'Raw Concentration',
+    'plate_name': 'Plate Name',
+    'well_id': 'Well ID',
+    'well_type': 'Well Type',
+    'sample_id': 'Sample ID',
+    'detection_status': 'Detection Status',
+    'order': 'Order',
+}
+
+
 class AnalysisView:
     """ELISA analysis interface with configuration and plate grouping."""
 
@@ -77,7 +91,8 @@ class AnalysisView:
             style=Pack(margin=5, width=150)
         )
         self.dilution_input = toga.TextInput(
-            value='1.0',
+            value='101',
+            placeholder='1:101 (z. B. 10 µL Probe + 1000 µL Puffer → Verdünnungsfaktor 101)',
             style=Pack(flex=1, margin=5)
         )
         dilution_box.add(dilution_label, self.dilution_input)
@@ -110,18 +125,55 @@ class AnalysisView:
         unit_box.add(unit_label, self.unit_input)
         config_box.add(unit_box)
 
-        # PCA grouping column
-        pca_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        pca_label = toga.Label(
-            'PCA Grouping Column:',
+        # Heatmap configuration header
+        config_box.add(toga.Divider())
+        heatmap_header = toga.Label(
+            'Plate Heatmap Settings:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        config_box.add(heatmap_header)
+
+        # Heatmap color variable
+        heatmap_var_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        heatmap_var_label = toga.Label(
+            'Color Variable:',
             style=Pack(margin=5, width=150)
         )
-        self.pca_selection = toga.Selection(
-            items=["(None)"],
+        self.heatmap_color_var = toga.Selection(
+            items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
             style=Pack(flex=1, margin=5)
         )
-        pca_box.add(pca_label, self.pca_selection)
-        config_box.add(pca_box)
+        self.heatmap_color_var.value = 'od_value'
+        heatmap_var_box.add(heatmap_var_label, self.heatmap_color_var)
+        config_box.add(heatmap_var_box)
+
+        # Heatmap size variable
+        heatmap_size_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        heatmap_size_label = toga.Label(
+            'Size Variable:',
+            style=Pack(margin=5, width=150)
+        )
+        self.heatmap_size_var = toga.Selection(
+            items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
+            style=Pack(flex=1, margin=5)
+        )
+        self.heatmap_size_var.value = 'None'
+        heatmap_size_box.add(heatmap_size_label, self.heatmap_size_var)
+        config_box.add(heatmap_size_box)
+
+        # Heatmap colormap
+        heatmap_cmap_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        heatmap_cmap_label = toga.Label(
+            'Colormap:',
+            style=Pack(margin=5, width=150)
+        )
+        self.heatmap_colormap = toga.Selection(
+            items=['viridis', 'YlGnBu', 'Greys', 'coolwarm', 'berlin', 'binary', 'Wistia'],
+            style=Pack(flex=1, margin=5)
+        )
+        self.heatmap_colormap.value = 'viridis'
+        heatmap_cmap_box.add(heatmap_cmap_label, self.heatmap_colormap)
+        config_box.add(heatmap_cmap_box)
 
         return config_box
 
@@ -200,21 +252,44 @@ class AnalysisView:
 
         return grouping_box
 
-    def update_pca_selection(self):
-        if self.pca_selection is None:
-            return
+    def update_variable_selection(self):
+        """Update variable dropdowns with available columns."""
         if getattr(self.app, "connected_df", None) is None:
             return
-        
+
         df_headers = list(self.app.connected_df.columns.values)
-        self.pca_selection.items = df_headers
-            
-        
-    def rebuild_calibrant_rows (self):
+
+        # Add known analysis result columns
+        analysis_columns = ['concentration_dilution_corrected', 'concentration', 'detection_status']
+        for col in analysis_columns:
+            if col not in df_headers:
+                df_headers.append(col)
+
+        # Create display items with names
+        display_items = []
+        self.column_name_mapping = {}  # display_name -> actual_name
+
+        for col in df_headers:
+            display_name = COLUMN_DISPLAY_NAMES.get(col, col.replace('_', ' ').title())
+            display_items.append(display_name)
+            self.column_name_mapping[display_name] = col
+
+        # Update heatmap variable selectors with display names
+        if hasattr(self, 'heatmap_color_var') and self.heatmap_color_var:
+            self.heatmap_color_var.items = display_items
+            od_display = COLUMN_DISPLAY_NAMES.get('od_value', 'Od Value')
+            if od_display in display_items:
+                self.heatmap_color_var.value = od_display
+
+        if hasattr(self, 'heatmap_size_var') and self.heatmap_size_var:
+            self.heatmap_size_var.items = ['None'] + display_items
+            self.heatmap_size_var.value = 'None'
+
+    def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
         cal_count = int(self.app.calibrant_count or 0)
         self.calibrant_container.clear()
-
+        self.calibrant_rows.clear()
         for order in range(cal_count):
             row = self.create_calibrant_row(order)
             self.calibrant_container.add(row)
@@ -409,24 +484,15 @@ class AnalysisView:
             style=Pack(margin=5, flex=1)
         )
 
-        clear_btn = toga.Button(
-            'Clear Results',
-            on_press=self.app.results_view.on_clear_results,
-            style=Pack(margin=5, flex=1)
-        )
-
-        export_btn = toga.Button(
-            'Export to CSV',
-            on_press=self.app.results_view.on_export_results,
-            style=Pack(margin=5, flex=1)
-        )
-
-        btn_box.add(run_btn, clear_btn, export_btn)
+        btn_box.add(run_btn)
         return btn_box
 
-    async def on_run_analysis(self, widget):
+    async def on_run_analysis(self, widget=None):
         """Trigger analysis workflow."""
-
+        
+        if getattr(self.app, 'results_view') is not None and self.app.analysis_results is not None:
+            await self.app.results_view.on_clear_results()
+            
         # Collect calibrant concentrations
         calibrant_config = {}
         for row in self.calibrant_rows:
@@ -464,9 +530,7 @@ class AnalysisView:
         # Get concentration unit
         concentration_unit = self.unit_input.value.strip() or 'U/mL'
 
-        # Get PCA grouping column
-        pca_grouping_column = self.pca_selection.value.strip()
-
+            
         # Check if data is loaded
         if self.app.connected_df is None or self.app.connected_df.empty:
             await self.app.main_window.dialog(
@@ -476,13 +540,24 @@ class AnalysisView:
 
             return
 
+        # Get heatmap settings - convert display names back to column names
+        heatmap_color_display = self.heatmap_color_var.value if hasattr(self, 'heatmap_color_var') else 'OD Value'
+        heatmap_size_display = self.heatmap_size_var.value if hasattr(self, 'heatmap_size_var') else 'None'
+        heatmap_colormap = self.heatmap_colormap.value if hasattr(self, 'heatmap_colormap') else 'viridis'
+
+        mapping = getattr(self, 'column_name_mapping', {})
+        heatmap_color_var = mapping.get(heatmap_color_display, 'concentration_dilution_corrected')
+        heatmap_size_var = mapping.get(heatmap_size_display, 'None') if heatmap_size_display != 'None' else 'None'
+
         # Update app config
         self.app.analysis_config = {
             'calibrant_concentrations': calibrant_config,
             'dilution_factor': dilution_factor,
             'lod_loq_mode': lod_mode,
             'concentration_unit': concentration_unit,
-            'pca_grouping_column': pca_grouping_column
+            'heatmap_color_var': heatmap_color_var,
+            'heatmap_size_var': heatmap_size_var,
+            'heatmap_colormap': heatmap_colormap
         }
 
         # Run analysis

@@ -174,10 +174,47 @@ class BeELISA(toga.App):
 
             
             if hasattr(self, "analysis_view") and self.analysis_view is not None:
-                self.analysis_view.update_pca_selection()
+                self.analysis_view.update_variable_selection()
                 self.analysis_view.rebuild_calibrant_rows()
                 self.analysis_view.refresh_plate_checkboxes()
                 self.analysis_view.refresh_groups_display()
+            
+            
+            # needs to refresh each diplay correctly on its own instead
+            # rv = self.results_view
+            # if hasattr(self, 'results_view') and rv.plot_imageview.image and rv.results_table.data and rv.qc_summary.value and rv.model_comparison.value and self.analysis_results is not None:
+            #     try:
+            #         self.log('Starting ELISA analysis...')
+            #         results = self.engine.run_analysis(self.connected_df)
+
+            #         if not results['success']:
+            #             error_msg = '\n'.join(results.get('errors', ['Unknown error']))
+            #             await self.main_window.dialog(
+            #                 toga.ErrorDialog('Analysis Error', error_msg)
+            #             )
+            #             self.log('Analysis Error')
+
+            #             return
+
+            #         # Store results
+            #         self.analysis_results = results
+            #         self.log(f'Analysis completed for {len(results["curve_fits"])} plate(s)')
+
+            #         # Update display in results view
+            #         self.results_view.update_results_display(results)
+
+            #         await self.main_window.dialog(
+            #             toga.InfoDialog('Success', 'Analysis completed successfully!')
+            #         )
+            #         self.log('Success: Analysis completed successfully!')
+
+            #     except Exception as e:
+            #         self.log(f'Analysis error: {str(e)}')
+            #         await self.app.main_window.dialog(
+            #             toga.ErrorDialog('Analysis Error', str(e))
+            #         )
+
+                
         
         except Exception as e:
            await self.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))

@@ -2,6 +2,9 @@ import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
 import pandas as pd
+import os
+import zipfile
+from datetime import datetime
 
 
 class ResultsView:
@@ -14,8 +17,9 @@ class ResultsView:
         self.curve_info = None
         self.current_plots = {}  # Store generated plot paths
         self.current_plot_type = None  # Track which plot type is currently displayed
+        self.plate_selector = None
 
-        # Plate grouping UI elements
+        # Plate grouping elements
         self.plate_switches = {}  # {plate_name: toga.Switch}
         self.plates_container = None
         self.groups_list_container = None
@@ -89,7 +93,14 @@ class ResultsView:
             on_press=self.on_show_standard_curve,
             style=Pack(margin=2, flex=1)
         )
-   
+
+
+        self.plot_heatmap_btn = toga.Button(
+            'Plate Heatmap',
+            on_press=self.on_show_heatmap,
+            style=Pack(margin=2, flex=1)
+        )
+        
         self.plot_pca_btn = toga.Button(
             'PCA Analysis',
             on_press=self.on_show_pca,
@@ -98,6 +109,7 @@ class ResultsView:
 
         plot_buttons_box.add(
             self.plot_std_curve_btn,
+            self.plot_heatmap_btn,
             self.plot_pca_btn
         )
 
@@ -119,6 +131,24 @@ class ResultsView:
         self.results_tabs.content.append('QC Summary', qc_box)
         self.results_tabs.content.append('Model Comparison', model_comp_box)
         self.results_tabs.content.append('Plots', plots_box)
+
+        # Export section
+        export_box = toga.Box(style=Pack(direction=ROW, margin=5))
+
+        export_all_btn = toga.Button(
+            'Export All Results',
+            on_press=self.on_export_all_zip,
+            style=Pack(margin=5)
+        )
+        
+        clear_btn = toga.Button(
+            'Clear Results',
+            on_press=self.on_clear_results,
+            style=Pack(margin=5)
+        )
+
+        export_box.add(export_all_btn, clear_btn)
+        results_box.add(export_box)
 
         results_box.add(self.results_tabs)
 
@@ -227,12 +257,12 @@ class ResultsView:
                 # Show model parameters
                 params = curve.get('params', [])
                 param_names = curve.get('param_names', [])
-                model_text += f"\n  Model Parameters:\n"
+                model_text += "\n  Model Parameters:\n"
                 for name, val in zip(param_names, params):
                     model_text += f"    {name}: {val:.4f}\n"
 
                 # Show goodness of fit
-                model_text += f"\n  Goodness of Fit:\n"
+                model_text += "\n  Goodness of Fit:\n"
                 r2 = curve.get('r_squared')
                 adj_r2 = curve.get('adjusted_r_squared')
                 rmse = curve.get('rmse')
@@ -254,7 +284,7 @@ class ResultsView:
                 # Show comparison table
                 comparison_df = curve.get('comparison_df')
                 if comparison_df is not None:
-                    model_text += f"\n  All Models Comparison:\n"
+                    model_text += "\n  All Models Comparison:\n"
                     model_text += f"  {'Model':<20} {'Status':<15} {'BIC':<10} {'AIC':<10} {'R²':<8}\n"
                     model_text += f"  {'-'*70}\n"
 
@@ -274,7 +304,7 @@ class ResultsView:
 
                         model_text += f"  {marker} {model:<18} {status:<15} {bic_str:<10} {aic_str:<10} {r2_str:<8}\n"
             else:
-                model_text += f"\n  Model fitting failed\n"
+                model_text += "\n  Model fitting failed\n"
                 model_text += f"  Error: {curve.get('error', 'Unknown error')}\n"
 
             model_text += "\n" + "=" * 60 + "\n\n"
@@ -286,6 +316,9 @@ class ResultsView:
 
         from ..analysis.visualization import ELISAVisualizer
         visualizer = ELISAVisualizer(concentration_unit=unit)
+
+        # Get colormap from config
+        plot_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
 
         # Generate plots for each plate
         for plate_name, curve_result in results.get('curve_fits', {}).items():
@@ -309,7 +342,8 @@ class ResultsView:
                                 concentrations,
                                 od_values,
                                 curve_result,
-                                plate_name
+                                plate_name,
+                                colormap=plot_colormap
                             )
                             self.app.log(f'Created standard curve plot: {std_curve_path}')
 
@@ -329,33 +363,55 @@ class ResultsView:
                 else:
                     self.app.log(f'Skipping plots for {plate_name}: no calibrants or concentration column missing')
 
-        # Generate PCA analysis
-        from ..analysis.pca import ELISAPCAAnalyzer
-        pca_analyzer = ELISAPCAAnalyzer(n_components=2)
+        # Generate PCA analysis - only if plate groups are defined
+        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
+            from ..analysis.pca import ELISAPCAAnalyzer
+            pca_analyzer = ELISAPCAAnalyzer(n_components=2)
 
-        # Use metadata-based PCA if column specified, otherwise use plate-based
-        pca_column = self.app.analysis_config.get('pca_grouping_column')
-        if pca_column and pca_column in results['data_df'].columns:
-            # Metadata-based PCA
-            pca_result = pca_analyzer.analyze_by_metadata(
-                results['data_df'],
-                grouping_column=pca_column
-            )
+            # Plate-level PCA using QC metrics (LOD, LOQ, R², RMSE, BIC, CV, curve params)
+            pca_result = pca_analyzer.analyze_plates(results, self.app.plate_groups)
+
             if pca_result is not None:
+                # Compute 95% confidence ellipses
+                ellipse_data = pca_analyzer.compute_confidence_ellipses(
+                    pca_result['scores'],
+                    pca_result['labels'],
+                    confidence=0.95
+                )
+
                 pca_path = visualizer.create_pca_plot(
                     pca_result,
-                    title=f"PCA Analysis - Grouped by {pca_column}"
+                    title="Plate QC Metrics - PCA by Group",
+                    color_labels=pca_result['labels'],
+                    color_name="Plate Group",
+                    colormap=plot_colormap,
+                    ellipse_data=ellipse_data
                 )
                 self.current_plots['pca'] = pca_path
-        else:
-            # Multi-plate batch effect analysis (original)
-            pca_result = pca_analyzer.analyze_multi_plate_variation(results['data_df'])
-            if pca_result is not None:
-                pca_path = visualizer.create_pca_plot(
-                    pca_result,
-                    title="Multi-Plate Batch Effect Analysis"
+                self.app.log(f'Created plate-level PCA with {len(self.app.plate_groups)} groups')
+
+        # Generate heatmaps for all plates using config from analysis_view
+        heatmap_color_var = self.app.analysis_config.get('heatmap_color_var', 'od_value')
+        heatmap_size_var = self.app.analysis_config.get('heatmap_size_var', 'None')
+        heatmap_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
+
+        all_plate_names = list(results['data_df']['plate_name'].unique())
+        for plate_name in all_plate_names:
+            try:
+                heatmap_path = visualizer.create_plate_heatmap(
+                    data_df=results['data_df'],
+                    value_column=heatmap_color_var,
+                    plate_name=plate_name,
+                    colormap=heatmap_colormap,
+                    show_values=True,
+                    size_column=heatmap_size_var if heatmap_size_var != 'None' else None
                 )
-                self.current_plots['pca'] = pca_path
+                if plate_name not in self.current_plots:
+                    self.current_plots[plate_name] = {}
+                self.current_plots[plate_name]['heatmap'] = heatmap_path
+                self.app.log(f'Created heatmap for {plate_name}')
+            except Exception as e:
+                self.app.log(f'Error creating heatmap for {plate_name}: {str(e)}')
 
         # Update plate selector with available plates
         plate_names = [k for k in self.current_plots.keys() if k != 'pca']
@@ -365,8 +421,9 @@ class ResultsView:
             self.plate_selector.items = plate_names
             self.plate_selector.value = plate_names[0]  # Select first plate by default
 
-    async def on_clear_results(self, widget):
+    async def on_clear_results(self, widget=None):
         """Clear all results."""
+        self.app.loading.start()
         self.results_table.data = []
         self.qc_summary.value = ""
         self.model_comparison.value = ""
@@ -375,41 +432,7 @@ class ResultsView:
             self.plot_imageview.image = None
         self.app.analysis_results = None
         self.app.log('Analysis results cleared')
-
-    async def on_export_results(self, widget):
-        """Export results to CSV."""
-        if self.app.analysis_results is None:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog('No Results', 'Run analysis first before exporting.')
-            )
-            return
-
-        try:
-            file_path = await self.app.main_window.dialog(
-                toga.SaveFileDialog(
-                    title="Export Analysis Results",
-                    suggested_filename="elisa_analysis_results.csv",
-                    file_types=['csv']
-                )
-            )
-
-            if file_path:
-                # Export full results DataFrame
-                self.app.analysis_results['data_df'].to_csv(
-                    file_path,
-                    index=False,
-                    encoding='utf-8-sig'
-                )
-
-                await self.app.main_window.dialog(
-                    toga.InfoDialog('Success', f'Results exported to {file_path.name}')
-                )
-                self.app.log(f'Analysis results exported to {file_path.name}')
-
-        except Exception as e:
-            await self.app.main_window.dialog(
-                toga.ErrorDialog('Export Error', str(e))
-            )
+        self.app.loading.stop()
 
     async def on_show_standard_curve(self, widget):
         """Display standard curve plot."""
@@ -433,6 +456,29 @@ class ResultsView:
         await self.app.main_window.dialog(
             toga.InfoDialog('No Plot', 'Standard curve plot not available for selected plate.')
         )
+        
+    async def on_show_heatmap(self, widget):
+        """Display Heatmap plot."""
+        if not self.current_plots:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
+            )
+            return
+
+        # Get selected plate
+        selected_plate = self.plate_selector.value
+        if selected_plate and selected_plate in self.current_plots:
+            plots = self.current_plots[selected_plate]
+            if 'heatmap' in plots:
+                path = plots['heatmap']
+                self.plot_imageview.image = path
+                self.current_plot_type = 'heatmap'
+                self.app.log(f'Displaying Heatmap plate for {selected_plate}')
+                return
+
+        await self.app.main_window.dialog(
+            toga.InfoDialog('No Plot', 'Heatmap plate not available for selected plate.')
+        )
 
    
     async def on_show_pca(self, widget):
@@ -447,10 +493,10 @@ class ResultsView:
             path = self.current_plots['pca']
             self.plot_imageview.image = path
             self.current_plot_type = 'pca'
-            self.app.log('Displaying PCA batch effect analysis')
+            self.app.log('Displaying PCA analysis by plate groups')
         else:
             await self.app.main_window.dialog(
-                toga.InfoDialog('No PCA', 'PCA analysis requires multiple plates.')
+                toga.InfoDialog('No PCA', 'PCA analysis requires at least 2 plate groups to be defined.')
             )
 
     async def on_plate_selection_changed(self, widget):
@@ -469,3 +515,72 @@ class ResultsView:
             path = plots[self.current_plot_type]
             self.plot_imageview.image = path
             self.app.log(f'Switched to {self.current_plot_type} plot for {selected_plate}')
+
+    async def on_export_all_zip(self, widget):
+        """Export all results as a ZIP archive."""
+        if self.app.analysis_results is None:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('No Results', 'Run analysis first before exporting.')
+            )
+            return
+
+        try:
+            file_path = await self.app.main_window.dialog(
+                toga.SaveFileDialog(
+                    title="Export All Results",
+                    suggested_filename="elisa_analysis_results.zip",
+                    file_types=['zip']
+                )
+            )
+
+            if file_path:
+                with zipfile.ZipFile(str(file_path), 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # Add results CSV
+                    csv_content = self.app.analysis_results['data_df'].to_csv(index=False)
+                    zipf.writestr('results/analysis_results.csv', csv_content)
+
+                    # Add QC report
+                    report_content = "ELISA Analysis Report\n"
+                    report_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    report_content += "=" * 80 + "\n\n"
+                    report_content += "QC SUMMARY\n"
+                    report_content += "-" * 80 + "\n"
+                    report_content += self.qc_summary.value + "\n\n"
+                    report_content += "MODEL COMPARISON\n"
+                    report_content += "-" * 80 + "\n"
+                    report_content += self.model_comparison.value
+                    zipf.writestr('reports/qc_report.txt', report_content)
+
+                    # Add plots
+                    for plate_name, plots in self.current_plots.items():
+                        if plate_name == 'pca':
+                            continue
+                        if isinstance(plots, dict) and 'standard_curve' in plots:
+                            plot_path = plots['standard_curve']
+                            if os.path.exists(plot_path):
+                                zipf.write(plot_path, f'plots/standard_curve_{plate_name}.png')
+
+                    # Add PCA plot
+                    if 'pca' in self.current_plots:
+                        pca_path = self.current_plots['pca']
+                        if os.path.exists(pca_path):
+                            zipf.write(pca_path, 'plots/pca_analysis.png')
+
+                    # Add all heatmaps
+                    for plate_name, plots in self.current_plots.items():
+                        if plate_name == 'pca':
+                            continue
+                        if isinstance(plots, dict) and 'heatmap' in plots:
+                            heatmap_path = plots['heatmap']
+                            if os.path.exists(heatmap_path):
+                                zipf.write(heatmap_path, f'plots/heatmap_{plate_name}.png')
+
+                await self.app.main_window.dialog(
+                    toga.InfoDialog('Success', f'All results exported to {file_path.name}')
+                )
+                self.app.log(f'All results exported to ZIP: {file_path.name}')
+
+        except Exception as e:
+            await self.app.main_window.dialog(
+                toga.ErrorDialog('Export Error', str(e))
+            )
