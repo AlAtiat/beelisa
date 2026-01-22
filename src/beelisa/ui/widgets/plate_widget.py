@@ -21,7 +21,7 @@ class PlateWidget:
         self.range_col_from = None
         self.range_row_to = None
         self.range_col_to = None
-
+        
         # Interactive well buttons
         self.well_buttons = {}  # {(row, col): button}
 
@@ -123,6 +123,18 @@ class PlateWidget:
         type_row = toga.Box(style=Pack(direction=ROW, margin=5))
         type_label = toga.Label('Well Type:', style=Pack(margin_right=10, width=80))
 
+
+        # Replicate number input
+        replicate_label = toga.Label('Replicate #:', style=Pack(margin_left=20, margin_right=5, width=80))
+        self.replicate_input = toga.NumberInput(
+            min=0,
+            max=99,
+            value=0,
+            style=Pack(margin_right=10, width=60)
+        )
+        self.replicate_input.on_change = self.on_replicate_change
+        self.current_replicate_round = 0  # Track current replicate number
+        
         self.well_type_dropdown = toga.Selection(
             items=['Empty', 'Blank', 'Calibrant', 'Sample', 'Positive Control', 'Negative Control'],
             on_change=self.on_well_type_changed,
@@ -130,7 +142,7 @@ class PlateWidget:
         )
         self.well_type_dropdown.value = 'Sample'  # Default to Sample
 
-        type_row.add(type_label, self.well_type_dropdown)
+        type_row.add(type_label, self.well_type_dropdown, replicate_label, self.replicate_input)
         controls_box.add(type_row)
 
         # Action buttons row
@@ -194,24 +206,54 @@ class PlateWidget:
         well_type = self.model.grid[row][col]
         color = self.model.colors[well_type]
 
+        # Check replicate round and darken color for replicates
+        rep_round = self.model.get_replicate_round(row, col)
+        if rep_round > 0:
+            color = self._darken_color(color, 0.7 ** rep_round)
+
         # Check for range selection highlighting
         is_range_start = (self.range_selection_mode and
                          self.range_start_well == (row, col))
 
-        # Check if well has a selection number
-        selection_num = self.model.get_selection_number(row, col)
-        if selection_num is not None:
-            button.text = str(selection_num)
-            button.style.color = '#FFFFFF'
+        # Only show order numbers for non-empty wells
+        if well_type != WellType.EMPTY:
+            # Get ORDER and convert to 1-based integer display
+            order = self.model.get_well_order(row, col)
+            if order is not None:
+                display_order = int(order) + 1  # Convert float to int, make 1-based
+                # Show order number (same for originals and replicates)
+                if rep_round > 0:
+                    button.text = f"{display_order}R"  # e.g., "1R", "2R"
+                else:
+                    button.text = str(display_order)  # e.g., "1", "2", "3"
+                button.style.color = "#FFFFFF"
+                button.style.font_size = 8  # Smaller font to fit
+            else:
+                button.text = ''
+                button.style.color = '#000000'
+
+            # Add visual indicator for range start (⊙ symbol)
+            if is_range_start:
+                button.text = '⊙' if order is None else f'⊙{display_order}'
         else:
+            # Empty wells always have no text
             button.text = ''
             button.style.color = '#000000'
 
+            # Range start indicator for empty wells
+            if is_range_start:
+                button.text = '⊙'
+
         button.style.background_color = color
 
-        # Add visual indicator for range start (⊙ symbol)
-        if is_range_start:
-            button.text = '⊙' if not selection_num else f'⊙{selection_num}'
+    def _darken_color(self, hex_color, factor):
+        """Darken hex color by factor (0-1)."""
+        # Handle format: #RRGGBBAA or #RRGGBB
+        r = int(int(hex_color[1:3], 16) * factor)
+        g = int(int(hex_color[3:5], 16) * factor)
+        b = int(int(hex_color[5:7], 16) * factor)
+        alpha = hex_color[7:9] if len(hex_color) > 7 else ''
+        return f"#{r:02X}{g:02X}{b:02X}{alpha}"
 
     def _update_well_count_display(self):
         """Update well count label using cached counts."""
@@ -225,7 +267,10 @@ class PlateWidget:
             f"Neg: {counts[WellType.NEGATIVE_CONTROL]}"
         )
         self.well_count_label.text = count_text
-        self.app.calibrant_count = counts[WellType.CALIBRANT]
+
+        # Use unique calibrant count (originals only, not replicates)
+        self.app.calibrant_count = self.model.get_unique_calibrant_count()
+
         if hasattr(self.app, "analysis_view"):
             self.app.analysis_view.rebuild_calibrant_rows()
 
@@ -256,15 +301,16 @@ class PlateWidget:
             row_start, col_start = self.range_start_well
             row_end, col_end = (row, col)
             active = self.model.active_key.name
+
             self.app.log(
                 f"Apply range {self._well_name(row_start, col_start)} → {self._well_name(row_end, col_end)} as {active}"
             )
-            # Select the range and get affected wells
+            # Select the range and get affected wells (pass replicate_round from input)
             affected_wells = self.model.select_range(
-                row_start, col_start, row_end, col_end
+                row_start, col_start, row_end, col_end,
+                replicate_round=self.current_replicate_round
             )
-            self.app.log(f"Updated {len(affected_wells)} wells to {active}.")
-
+            self.app.log(f"Updated {len(affected_wells)} wells to {active} (replicate #{self.current_replicate_round}).")
 
             # Exit range selection mode
             self.range_selection_mode = False
@@ -299,9 +345,42 @@ class PlateWidget:
             'Negative Control': WellType.NEGATIVE_CONTROL,
         }
         self.model.active_key = type_map[widget.value]
-        self.app.log(f"well type changed to {widget.value}")
+
+        # Reset replicate input to 0 when well type changes
+        self.replicate_input.value = 0
+        self.current_replicate_round = 0
+
+        self.app.log(f"Well type changed to {widget.value}")
         if hasattr(self.app, "analysis_view"):
             self.app.analysis_view.rebuild_calibrant_rows()
+
+    async def on_replicate_change(self, widget):
+        """Handle replicate number input change."""
+        try:
+            value = int(widget.value) if widget.value else 0
+            # Ensure within valid range
+            if value < 0:
+                value = 0
+                widget.value = 0
+
+            # Validate that originals exist before allowing replicates
+            if value > 0:  # Only validate if trying to set replicate > 0
+                if not self.model.has_originals_for_type(self.model.active_key):
+                    well_type_name = self.model.active_key.name.replace('_', ' ').title()
+                    self.app.log(
+                        f"Cannot set replicate level for {well_type_name} "
+                        f"without originals. Select at least one well as original (replicate #: 0) first."
+                    )
+                    value = 0
+                    widget.value = 0
+
+            self.current_replicate_round = value
+            if value > 0:
+                self.app.log(f"Replicate level set to: {value}")
+        except (ValueError, TypeError):
+            # If invalid input, default to 0
+            self.current_replicate_round = 0
+            widget.value = 0
 
     async def on_select_all(self, widget):
         """Handle Select All button."""
@@ -316,6 +395,7 @@ class PlateWidget:
     async def on_clear_plate(self, widget):
         """Handle Clear Plate button."""
         self.model.select_none()
+        self.display_order = None
         self.refresh_visualization()
         self.app.log("Well Plate Cleared")
         if hasattr(self.app, "analysis_view"):

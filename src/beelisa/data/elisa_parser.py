@@ -331,58 +331,19 @@ class ELISAParser:
 
         # Concatenate all plates into one dataframe
         self.app.connected_df = pd.concat(all_plate_dfs, ignore_index=True)
-        
-            
-            
+
+        # Log replicate information for debugging
+        if 'is_replicate' in self.app.connected_df.columns:
+            n_replicates = self.app.connected_df['is_replicate'].sum()
+            n_originals = (~self.app.connected_df['is_replicate']).sum()
+            self.app.log(f"Replicate info: {n_originals} originals, {n_replicates} replicates")
+
+        if 'replicate_round' in self.app.connected_df.columns:
+            rounds = self.app.connected_df['replicate_round'].value_counts().to_dict()
+            self.app.log(f"Replicate rounds: {rounds}")
+
         self.app.log(f"Merged {len(plates)} plate(s) with {len(self.app.connected_df)} total wells")
         self.app.log("Data View Available")
 
 
         return self.app.connected_df
-
-    # def identify_replicates(self, sample_df: pd.DataFrame) -> pd.DataFrame:
-    #     """
-    #     Group replicate wells and calculate statistics.
-
-    #     Args:
-    #         sample_df: DataFrame with sample_id, well_id, od_value
-
-    #     Returns:
-    #         DataFrame with: sample_id, mean_od, std_od, cv_percent, n_replicates
-    #     """
-    #     grouped = sample_df.groupby('sample_id')['od_value'].agg([
-    #         ('mean_od', 'mean'),
-    #         ('std_od', 'std'),
-    #         ('n_replicates', 'count')
-    #     ]).reset_index()
-
-    #     # Calculate coefficient of variation (CV%)
-    #     grouped['cv_percent'] = (grouped['std_od'] / grouped['mean_od']) * 100
-
-    #     # Flag high CV samples (>20% is typically concerning)
-    #     grouped['high_cv'] = grouped['cv_percent'] > 20
-
-    #     return grouped
-
-    # def identify_blanks(self, sample_df: pd.DataFrame,
-    #                    blank_identifier: str = 'Blank') -> Tuple[float, int]:
-    #     """
-    #     Identify and calculate mean blank OD.
-
-    #     Args:
-    #         sample_df: DataFrame with sample_id and od_value
-    #         blank_identifier: String to identify blank wells
-
-    #     Returns:
-    #         Tuple of (mean_blank_od, n_blanks)
-    #     """
-    #     blanks = sample_df[sample_df['sample_id'].str.contains(
-    #         blank_identifier, case=False, na=False
-    #     )]
-
-    #     if len(blanks) > 0:
-    #         mean_blank = blanks['od_value'].mean()
-    #         n_blanks = len(blanks)
-    #         return mean_blank, n_blanks
-    #     else:
-    #         return 0.0, 0

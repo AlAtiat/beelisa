@@ -93,7 +93,7 @@ class AnalysisView:
         )
         self.dilution_input = toga.TextInput(
             value='101',
-            placeholder='1:101 (z. B. 10 µL Probe + 1000 µL Puffer → Verdünnungsfaktor 101)',
+            placeholder='1:101 (z. B 10 µL Probe + 1000 µL Puffer → Verdünnungsfaktor 101)',
             style=Pack(flex=1, margin=5)
         )
         dilution_box.add(dilution_label, self.dilution_input)
@@ -125,6 +125,20 @@ class AnalysisView:
         )
         unit_box.add(unit_label, self.unit_input)
         config_box.add(unit_box)
+        
+        # OD Wavelength
+        od_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        od_label = toga.Label(
+            'Optical Density:',
+            style=Pack(margin=5, width=150)
+        )
+        self.od_input = toga.TextInput(
+            value='450/620 nm',
+            placeholder='450 nm und 620nm e.g',
+            style=Pack(flex=1, margin=5)
+        )
+        od_box.add(od_label, self.od_input)
+        config_box.add(od_box)
 
         # Heatmap configuration header
         config_box.add(toga.Divider())
@@ -548,6 +562,7 @@ class AnalysisView:
 
         # Get concentration unit
         concentration_unit = self.unit_input.value.strip() or 'U/mL'
+        od_wavelength = self.od_input.value.strip() or '450/620 nm'
 
             
         # Check if data is loaded
@@ -576,6 +591,7 @@ class AnalysisView:
             'dilution_factor': dilution_factor,
             'lod_loq_mode': lod_mode,
             'concentration_unit': concentration_unit,
+            'od_wavelength' : od_wavelength,
             'heatmap_color_var': heatmap_color_var,
             'heatmap_size_var': heatmap_size_var,
             'heatmap_label_var': heatmap_label_var,

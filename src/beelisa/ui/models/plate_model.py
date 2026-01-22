@@ -109,7 +109,7 @@ class PlateModel:
                 if old_type != self.active_key:
                     self.grid[row][col] = self.active_key
 
-    def select_range(self, row_start, col_start, row_end, col_end):
+    def select_range(self, row_start, col_start, row_end, col_end, replicate_round=None):
         """
         Set all wells in a rectangular range to active well type.
         Returns set of affected (row, col) tuples for differential updates.
@@ -124,18 +124,18 @@ class PlateModel:
             for col in range(col_start, col_end + 1):
                 old_type = self.grid[row][col]
                 if old_type != self.active_key:
-                    self.add_to_selection_order(row, col, self.active_key)
+                    self.add_to_selection_order(row, col, self.active_key, replicate_round)
                     affected_wells.add((row, col))
 
         return affected_wells
 
-    def add_to_selection_order(self, row, col, well_type=None):
+    def add_to_selection_order(self, row, col, well_type=None, replicate_round=None):
         """Add well to selection order, tracking sequence."""
         if well_type is None:
             well_type = self.active_key
 
         old_type = self.grid[row][col]
-        
+
         # If already selected with same type, don't add again
         if (row, col) in self.selection_history and self.grid[row][col] == well_type:
             return
@@ -149,20 +149,22 @@ class PlateModel:
             for i, entry in enumerate(self.selection_order, 1):
                 entry['index'] = i
                 self.selection_history[entry['coords']] = i
-                
+
         if old_type != well_type:
             self._update_well_count(old_type, well_type)
             self.grid[row][col] = well_type
 
         # Add new selection
         index = len(self.selection_order) + 1
+        rep_round = replicate_round if replicate_round is not None else 0
         self.selection_order.append({
             'index': index,
             'well': '%s%02d' % (chr(65 + row), col + 1),
             'row': row,
             'col': col,
             'type': well_type,
-            'coords': (row, col)
+            'coords': (row, col),
+            'replicate_round': rep_round
         })
         self.selection_history[(row, col)] = index
 
@@ -191,7 +193,41 @@ class PlateModel:
             for i, entry in enumerate(self.selection_order, 1):
                 entry['index'] = i
                 self.selection_history[entry['coords']] = i
-        
+
+    def get_replicate_round(self, row, col):
+        """Get replicate round for a well (0=original, 1=replicate, etc.)."""
+        for w in self.selection_order:
+            if w['coords'] == (row, col):
+                return w.get('replicate_round', 0)
+        return 0
+
+    def has_originals_for_type(self, well_type):
+        """Check if any original wells (replicate_round=0) exist for given type."""
+        for entry in self.selection_order:
+            if entry['type'] == well_type and entry.get('replicate_round', 0) == 0:
+                return True
+        return False
+
+    def get_well_order(self, row, col):
+        """Get the order number for a well (0-based, cycles for replicates)."""
+        # Don't return order for empty wells
+        if self.grid[row][col] == WellType.EMPTY:
+            return None
+
+        if self.app.plate_design_df is None:
+            return None
+        well_id = f"{chr(65 + row)}{col + 1:02d}"
+        match = self.app.plate_design_df[self.app.plate_design_df['well_id'] == well_id]
+        if not match.empty:
+            order = match.iloc[0].get('order')
+            return order if pd.notna(order) else None
+        return None
+
+    def get_unique_calibrant_count(self):
+        """Get count of unique calibrant concentration levels (not including replicates)."""
+        calibrant_wells = [w for w in self.selection_order
+                           if w['type'] == WellType.CALIBRANT and w.get('replicate_round', 0) == 0]
+        return len(calibrant_wells)
 
     def check_cell(self, row, col, key=None):
         """Check if cell matches given key, or return cell value if key is None."""
@@ -249,15 +285,31 @@ class PlateModel:
         }
 
     def plate_design(self, key=None):
+        # Count originals (replicate_round=0) for each type
+        original_counts = {}
+        for well in self.selection_order:
+            t = well["type"]
+            if well.get('replicate_round', 0) == 0:
+                original_counts[t] = original_counts.get(t, 0) + 1
+
+        # Assign order cyclically (replicates get same order as originals)
         plate_order = {}
+        plate_rep_round = {}
         well_type_counter = {t: 0 for t in WellType}
-        
+
         for well in self.selection_order:
             t = well["type"]
             rc = well["coords"]
-            plate_order[rc] = well_type_counter[t]
+            rep_round = well.get('replicate_round', 0)
+
+            # Order cycles: 0,1,2,3,4,0,1,2,3,4,0,1,2,3,4...
+            max_order = original_counts.get(t, 1)
+            order = well_type_counter[t] % max_order if max_order > 0 else well_type_counter[t]
             well_type_counter[t] += 1
-                        
+
+            plate_order[rc] = order
+            plate_rep_round[rc] = rep_round
+
         result = []
         for row in range(self.rows):
             for col in range(self.cols):
@@ -265,15 +317,18 @@ class PlateModel:
                 if key is not None and t != key:
                     continue
                 well_id = f"{chr(65 + row)}{col + 1:02d}"
-                order = plate_order.get((row, col))  # None if not selected/ordered
+                order = plate_order.get((row, col))
+                rep_round = plate_rep_round.get((row, col), 0)
 
                 result.append({
                     "well_id": well_id,
-                    "well_type": t.name,   # e.g. "CALIBRANT"
-                    "order": order         # e.g. 0,1,2... within that type
+                    "well_type": t.name,
+                    "order": order,
+                    "replicate_round": rep_round,
+                    "is_replicate": rep_round > 0
                 })
         self.app.plate_design_df = pd.DataFrame(result)
-        
+
         return result
                         
     # def from_dict(self, config):

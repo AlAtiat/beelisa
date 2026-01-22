@@ -12,7 +12,7 @@ class ELISAPCAAnalyzer:
     """
     PCA analysis for ELISA plate-level QC metrics.
 
-    Performs PCA on plate-level features (LOD, LOQ, R², RMSE, BIC, CV, curve params)
+    Performs PCA on plate-level features (LOD, LOQ, R², RMSE, BIC, CV)
     to detect batch effects and protocol differences between plate groups.
     """
 
@@ -35,7 +35,7 @@ class ELISAPCAAnalyzer:
         """
         Plate-level PCA using QC metrics.
 
-        Each plate = one observation. Features: LOD, LOQ, R², RMSE, BIC, CV, curve params.
+        Each plate = one observation. Features: LOD, LOQ, R², RMSE, BIC, CV.
         Groups plates by plate_group for coloring and ellipses.
 
         Args:
@@ -66,32 +66,36 @@ class ELISAPCAAnalyzer:
             qc = results.get('qc_summary', {}).get(plate_name, {})
 
             # Build feature vector
+            got_cv = qc.get('CALIBRANT', {}).get('cv_percent')
+            cv = got_cv if (got_cv is not None and np.isfinite(got_cv)) else np.nan
+            lod_od, loq_od = lod_loq.get('lod_od'), lod_loq.get('loq_od')
+            log_lod, log_loq = (np.log10(lod_od) if (lod_od is not None and np.isfinite(lod_od) and lod_od > 0) else np.nan, np.log10(loq_od) if (loq_od is not None and np.isfinite(loq_od) and loq_od > 0) else np.nan)
+
             row = {
-                'log_lod': np.log10(max(lod_loq.get('lod_od', 1e-10), 1e-10)),
-                'log_loq': np.log10(max(lod_loq.get('loq_od', 1e-10), 1e-10)),
-                'r_squared': curve.get('r_squared', 0),
-                'rmse': curve.get('rmse', 0),
-                'bic': curve.get('bic', 0),
-                'cv_calibrant': qc.get('CALIBRANT', {}).get('cv_percent', 0),
+                'log(LOD)': log_lod,
+                'log(LOQ)': log_loq,
+                'R²': curve.get('r_squared'),
+                'RMSE': curve.get('rmse'),
+                'BIC': curve.get('bic'),
+                'CV % Cal.': cv,
             }
 
-            # Add curve parameters (padded to 4 for consistency across models)
-            params = curve.get('params', [])
-            for i, p in enumerate(params[:4]):
-                row[f'param_{i}'] = p
-            for i in range(len(params), 4):
-                row[f'param_{i}'] = 0
 
             feature_rows.append(row)
             labels.append(plate_to_group[plate_name])
 
         if len(feature_rows) < 3:
-            return None  # Need at least 3 plates for PCA because of lod loq
+            return None  # Need at least 3 plates for PCA because of lod loq 
 
         # Build feature matrix
-        df = pd.DataFrame(feature_rows)
+        df = pd.DataFrame(feature_rows).apply(pd.to_numeric, errors="coerce")
+        if 'cv_calibrant' in df.columns and df['cv_calibrant'].isna().any():
+            df = df.drop(columns=['cv_calibrant'])
+        df = df.dropna(axis=1, how='any')
+        if df.shape[1] < 2:
+            return None
         feature_names = list(df.columns)
-        X = df.values
+        X = df.to_numpy(dtype=float)
 
         # Standardize and fit PCA
         X_scaled = self.scaler.fit_transform(X)

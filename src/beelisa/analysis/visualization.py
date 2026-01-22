@@ -30,14 +30,16 @@ DISPLAY_NAMES = {
 class ELISAVisualizer:
     """Generate static PNG plots for ELISA analysis results."""
 
-    def __init__(self, concentration_unit: str = 'U/mL'):
+    def __init__(self, concentration_unit: str = 'U/mL', od_wavelength: str = '450/620 nm'):
         """
         Initialize visualizer.
 
         Args:
             concentration_unit: Unit for concentration display (e.g., 'ng/mL', 'µg/mL')
+            od_wavelength: Unit and wavelength display (e.g., '450 nm')
         """
         self.concentration_unit = concentration_unit
+        self.od_wavelength = od_wavelength
         self.temp_dir = tempfile.gettempdir()
 
         # Set matplotlib style https://matplotlib.org/stable/gallery/style_sheets/
@@ -116,7 +118,7 @@ class ELISAVisualizer:
         # Formatting
         ax.set_xscale('log')
         ax.set_xlabel(f'Concentration ({self.concentration_unit})', fontsize=12, fontweight='bold')
-        ax.set_ylabel('Optical Density (OD)', fontsize=12, fontweight='bold')
+        ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength})', fontsize=12, fontweight='bold')
         ax.set_title(f'Standard Curve - {plate_name}', fontsize=14, fontweight='bold', pad=15)
         ax.legend(loc='best', fontsize=8)
         ax.grid(True, alpha=0.3, linestyle='--')
@@ -231,6 +233,43 @@ class ELISAVisualizer:
         pc2_var = variance_explained[1] * 100
         ax.set_xlabel(f'PC1 ({pc1_var:.1f}% variance)', fontsize=12, fontweight='bold')
         ax.set_ylabel(f'PC2 ({pc2_var:.1f}% variance)', fontsize=12, fontweight='bold')
+
+
+        # Biplot arrows (feature loadings)
+        from matplotlib.patches import FancyArrowPatch
+        loadings = pca_result.get('loadings')
+        feature_names = pca_result.get('feature_names', [])
+        if loadings is not None and len(feature_names) == loadings.shape[1]:
+            L = loadings[:2].T
+            mags = np.linalg.norm(L, axis=1)
+            cmap = plt.get_cmap(colormap)
+            norm = plt.Normalize(mags.min(), mags.max())
+
+            s = 0.9 * min(np.ptp(scores[:, 0]), np.ptp(scores[:, 1])) / (mags.max() + 1e-12)
+
+            for (x, y), m, name in zip(L * s, mags, feature_names):
+                color = cmap(norm(m))
+
+                # dotted line
+                ax.plot([0, x], [0, y], linestyle=':', linewidth=1.0,
+                        color=color, alpha=0.7)
+
+                # small arrow head
+                arrow = FancyArrowPatch(
+                    (0, 0), (x, y),
+                    arrowstyle='-|>',
+                    mutation_scale=8,   # smaller head
+                    linewidth=0,
+                    color=color,
+                    alpha=0.7
+                )
+                ax.add_patch(arrow)
+
+                # label near tip
+                ha = 'left' if x > 0 else 'right'
+                va = 'bottom' if y > 0 else 'top'
+                
+                ax.text(x * 1.05, y * 1.05, name, fontsize=7, color=color, ha=ha, va=va)
 
         ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
         ax.grid(True, alpha=0.3, linestyle='--')
@@ -399,6 +438,8 @@ class ELISAVisualizer:
         cbar_label = DISPLAY_NAMES.get(value_column, value_column.replace('_', ' ').title())
         if value_column in ['concentration', 'concentration_dilution_corrected']:
             cbar_label += f' ({self.concentration_unit})'
+        if value_column in ['od_value']:
+            cbar_label += f' ({self.od_wavelength})'
         cbar.ax.set_ylabel(cbar_label, fontsize=12, fontweight='bold')
 
         # Labels

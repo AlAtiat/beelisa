@@ -252,14 +252,17 @@ class CurveModel(ABC):
                 y_clean,
                 p0=p0,
                 bounds=self.bounds,
-                maxfev=100000000,
+                maxfev=20000,
                 method='trf' # Trust Region Reflective handle the "Reflective" boundaries 
             )
 
             # Calculate fitted values for linear model Yi(hat) = b0(hat) + b1(hat)Xi and residuals ei(hat)= Yi(hat) − Y(hat)
             fitted_values = self.equation(x_clean, *params) # Yi(hat)
             residuals = y_clean - fitted_values # ei(hat)
-
+            
+            if not (np.all(np.isfinite(params)) and np.all(np.isfinite(fitted_values))):
+                raise ValueError("Non-finite fit result")
+            
             # Calculate metrics
             rss = np.sum(residuals ** 2) # Residual sum of squares
             tss = np.sum((y_clean - np.mean(y_clean)) ** 2) # Total Sum of Squares
@@ -280,7 +283,8 @@ class CurveModel(ABC):
                 bic = None
 
             # RMSE The square root of the average squared error of the regression (to compare regression models).
-            rmse = np.sqrt(rss / n) # Root mean squared error
+            n_minus_k = n - k
+            rmse = np.sqrt(rss / n_minus_k) # Root mean squared error
 
             return FitResult(
                 success=True,

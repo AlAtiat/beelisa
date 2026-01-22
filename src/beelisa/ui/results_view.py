@@ -158,6 +158,7 @@ class ResultsView:
         """Update results table, QC summary, and model comparison."""
         # Get concentration unit from config
         unit = self.app.analysis_config.get('concentration_unit', 'U/mL')
+        od_wavelength = self.app.analysis_config.get('od_wavelength', '450/620 nm')
 
         # Update results table
         data_df = results['data_df']
@@ -172,7 +173,7 @@ class ResultsView:
                 concentration = row.get('concentration_dilution_corrected')
                 status = str(row.get('detection_status', 'N/A'))
 
-                od_str = f"{od_value:.3f}" if pd.notna(od_value) else 'N/A'
+                od_str = f"{od_value:.3f} {od_wavelength}" if pd.notna(od_value) else 'N/A'
                 conc_str = f"{concentration:.2f} {unit}" if pd.notna(concentration) and concentration is not None else 'N/A'
 
                 table_data.append((
@@ -192,7 +193,10 @@ class ResultsView:
         for plate, qc in results.get('qc_summary', {}).items():
             qc_text += f"Plate: {plate}\n"
             qc_text += "-" * 60 + "\n"
-
+            
+            qc_text += f"Calibrant Concentration Unit: {unit}\n"
+            qc_text += f"Optical density (OD): {od_wavelength}\n"
+            
             for well_type, metrics in qc.items():
                 qc_text += f"\n  {well_type}:\n"
                 qc_text += f"    N wells: {metrics['n_wells']}\n"
@@ -286,7 +290,7 @@ class ResultsView:
                 bic = curve.get('bic')
 
                 r2_str = f"{r2:.4f}" if r2 is not None else 'N/A'
-                adj_r2_str = f"{adj_r2:.4f}" if adj_r2 is not None else 'N/A'
+                adj_r2_str = f"{adj_r2:.4f}" if adj_r2 is not None else 'N/A  (Must be : n > k + 1)'
                 rmse_str = f"{rmse:.4f}" if rmse is not None else 'N/A'
                 aic_str = f"{aic:.2f}" if aic is not None else 'N/A'
                 bic_str = f"{bic:.2f}" if bic is not None else 'N/A'
@@ -331,7 +335,7 @@ class ResultsView:
         self.current_plots = {}
 
         from ..analysis.visualization import ELISAVisualizer
-        visualizer = ELISAVisualizer(concentration_unit=unit)
+        visualizer = ELISAVisualizer(concentration_unit=unit, od_wavelength=od_wavelength)
 
         # Get colormap from config
         plot_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
@@ -384,7 +388,7 @@ class ResultsView:
             from ..analysis.pca import ELISAPCAAnalyzer
             pca_analyzer = ELISAPCAAnalyzer(n_components=2)
 
-            # Plate-level PCA using QC metrics (LOD, LOQ, R², RMSE, BIC, CV, curve params)
+            # Plate-level PCA using QC metrics (LOD, LOQ, R², RMSE, BIC, CV)
             pca_result = pca_analyzer.analyze_plates(results, self.app.plate_groups)
 
             if pca_result is not None:
