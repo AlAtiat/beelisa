@@ -199,11 +199,11 @@ class ELISAParser:
         return s.split("/")[0]   # 201/1 → 201
 
     def _sample_id_aliases(self, df: pd.DataFrame) -> str:
-        aliases = [
-            "sample_id", "sampleid", "sample id",
-            "patient_id", "patientid", "patient id",
-            "id", "tm", "TM"
-        ]
+        aliases = []
+        user_input = self.app.view.sample_id_md.value
+        sample_id_name = str(user_input).strip().lower()
+        if sample_id_name:
+            aliases.append(sample_id_name)
         
         sample_id = {str(c).strip().lower(): c for c in df.columns}
         
@@ -211,9 +211,10 @@ class ELISAParser:
             key = a.strip().lower()
             if key in sample_id:
                 return sample_id[key]
-        
+
+        self.app.log(f"Metadata must contain a sample id column. Tried: {aliases}")
         raise ValueError(f"Metadata must contain a sample id column. Tried: {aliases}")
-        
+
     def _parse_sample_metadata(self, df: pd.DataFrame) -> pd.DataFrame:
         sample_id_df = df.copy()
 

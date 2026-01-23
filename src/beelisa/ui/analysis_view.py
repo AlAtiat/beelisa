@@ -158,7 +158,7 @@ class AnalysisView:
             items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
             style=Pack(flex=1, margin=5)
         )
-        self.heatmap_color_var.value = 'od_value'
+        self.heatmap_color_var.value = 'concentration_dilution_corrected'
         heatmap_var_box.add(heatmap_var_label, self.heatmap_color_var)
         config_box.add(heatmap_var_box)
 
@@ -172,7 +172,7 @@ class AnalysisView:
             items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
             style=Pack(flex=1, margin=5)
         )
-        self.heatmap_size_var.value = 'None'
+        self.heatmap_size_var.value = 'od_value'
         heatmap_size_box.add(heatmap_size_label, self.heatmap_size_var)
         config_box.add(heatmap_size_box)
 
@@ -200,7 +200,7 @@ class AnalysisView:
             items=['viridis', 'YlGnBu', 'Greys', 'coolwarm', 'berlin', 'binary', 'Wistia'],
             style=Pack(flex=1, margin=5)
         )
-        self.heatmap_colormap.value = 'viridis'
+        self.heatmap_colormap.value = 'coolwarm'
         heatmap_cmap_box.add(heatmap_cmap_label, self.heatmap_colormap)
         config_box.add(heatmap_cmap_box)
 
@@ -306,25 +306,31 @@ class AnalysisView:
         # Update heatmap variable selectors with display names
         if hasattr(self, 'heatmap_color_var') and self.heatmap_color_var:
             self.heatmap_color_var.items = display_items
-            od_display = COLUMN_DISPLAY_NAMES.get('od_value', 'Od Value')
-            if od_display in display_items:
-                self.heatmap_color_var.value = od_display
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            if con_display in display_items:
+                self.heatmap_color_var.value = con_display
 
         if hasattr(self, 'heatmap_size_var') and self.heatmap_size_var:
             self.heatmap_size_var.items = ['None'] + display_items
-            self.heatmap_size_var.value = 'None'
+            od_display = COLUMN_DISPLAY_NAMES.get('od_value', 'OD Value')
+            if od_display in display_items:
+                self.heatmap_size_var.value = od_display
 
         if hasattr(self, 'heatmap_label_var') and self.heatmap_label_var:
             self.heatmap_label_var.items = ['None'] + display_items
-            self.heatmap_label_var.value = 'None'
+            sample_id_display = COLUMN_DISPLAY_NAMES.get('sample_id', 'Sample ID')
+            if sample_id_display in display_items:
+                self.heatmap_label_var.value = sample_id_display
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
         cal_count = int(self.app.calibrant_count or 0)
         self.calibrant_container.clear()
         self.calibrant_rows.clear()
+        defaults = ["1", "10", "30", "100", "300"]
         for order in range(cal_count):
-            row = self.create_calibrant_row(order)
+            val = defaults[order] if order < len(defaults) else ""
+            row = self.create_calibrant_row(order, initial_value=val)
             self.calibrant_container.add(row)
 
     # ==================== PLATE GROUPING METHODS ====================
@@ -488,7 +494,7 @@ class AnalysisView:
 
     # ==================== END PLATE GROUPING METHODS ====================
 
-    def create_calibrant_row(self, order):
+    def create_calibrant_row(self, order, initial_value=""):
         """Create a single calibrant input row."""
         row = toga.Box(style=Pack(direction=ROW, margin=2))
 
@@ -497,6 +503,7 @@ class AnalysisView:
             style=Pack(margin=5, width=80)
         )
         conc_input = toga.TextInput(
+            value=initial_value,
             placeholder='Concentration',
             style=Pack(flex=1, margin=5)
         )

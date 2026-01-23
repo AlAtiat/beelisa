@@ -19,7 +19,8 @@ class Mainboard:
         self.pending_raw_filename = None
         self.pending_plate_id_filename = None
         self.plates_container = None
-
+        self.sample_id_md = None
+        
     def create_layout(self):
         """Create ELISA analysis view layout."""
         left_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
@@ -101,11 +102,26 @@ class Mainboard:
             style=Pack(margin=5, flex=1)
         )
         self.meta_status = toga.Label(
-            'No Metadata Loaded',
+            '',
             style=Pack(margin=5, flex=1)
         )
         meta_btn_box.add(meta_btn, self.meta_status)
         meta_data_load_button = meta_btn_box
+        
+        
+        # sample id column
+        sample_id_md_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        sample_id_md_label = toga.Label(
+            'Sample ID Column:',
+            style=Pack(margin=5)
+        )
+        self.sample_id_md = toga.TextInput(
+            value='TM',
+            placeholder='Sample_id, TM, Sample, ID, sample id',
+            style=Pack(margin=5, flex=1)
+        )
+        sample_id_md_box.add(sample_id_md_label, self.sample_id_md)
+        
         
         metadata_block = toga.Box(
             children=[
@@ -114,6 +130,7 @@ class Mainboard:
                     style=Pack(margin=5, font_weight='bold', background_color="#DBC5C5D1")
                 ),
                 toga.Divider(style=Pack(width=350, flex=1, margin=5)),
+                sample_id_md_box,
                 meta_data_load_button,
                 toga.Divider(),
 
@@ -137,7 +154,7 @@ class Mainboard:
             style=Pack(margin=5, flex=1)
         )
         self.raw_status = toga.Label(
-            'No Raw Data Loaded',
+            '',
             style=Pack(margin=5, flex=1)
         )
         raw_btn_box.add(raw_btn, self.raw_status)
@@ -151,7 +168,7 @@ class Mainboard:
             style=Pack(margin=5, flex=1)
         )
         self.plate_id_status = toga.Label(
-        'No Plate Sample ID loaded',
+        '',
         style=Pack(margin=5, flex=1)
         )
         plate_id_btn_box.add(plate_id_btn, self.plate_id_status)

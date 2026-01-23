@@ -125,7 +125,7 @@ class PlateWidget:
 
 
         # Replicate number input
-        replicate_label = toga.Label('Replicate #:', style=Pack(margin_left=20, margin_right=5, width=80))
+        replicate_label = toga.Label('Replicate:', style=Pack(margin_left=20, margin_right=5, width=80))
         self.replicate_input = toga.NumberInput(
             min=0,
             max=99,
@@ -369,7 +369,7 @@ class PlateWidget:
                     well_type_name = self.model.active_key.name.replace('_', ' ').title()
                     self.app.log(
                         f"Cannot set replicate level for {well_type_name} "
-                        f"without originals. Select at least one well as original (replicate #: 0) first."
+                        f"without originals. Select at least one well as original (replicate: 0) first."
                     )
                     value = 0
                     widget.value = 0

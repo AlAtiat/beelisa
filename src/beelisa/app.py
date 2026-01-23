@@ -1,12 +1,14 @@
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-from .data import ELISAParser
-from .data import DataViewer
-from .analysis import AnalysisEngine
+from .ui.elisa_view import Mainboard
 from .ui.data_view import DataView
 from .ui.analysis_view import AnalysisView
 from .ui.results_view import ResultsView
+from .data import ELISAParser
+from .data import DataViewer
+from .analysis import AnalysisEngine
+
 import asyncio
 
 class BeELISA(toga.App):
@@ -36,7 +38,8 @@ class BeELISA(toga.App):
             'lod_loq_mode': 'per_plate'
         }
         self.analysis_results = None
-
+        
+        self.view = Mainboard(self)
         self.parser = ELISAParser(self)
         self.viewer = DataViewer(self)
         self.engine = AnalysisEngine(self)
@@ -132,9 +135,7 @@ class BeELISA(toga.App):
     # View creation methods
     def create_elisa_view(self):
         """Create ELISA analysis interface"""
-        from .ui.elisa_view import Mainboard
-        view = Mainboard(self)
-        return view.create_layout()
+        return self.view.create_layout()
 
     # View migrated data
     def create_data_view(self):
