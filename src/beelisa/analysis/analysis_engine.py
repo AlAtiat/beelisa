@@ -265,7 +265,7 @@ class AnalysisEngine:
             except Exception:
                 conc = None
 
-            # Apply dilution factor for samples only and keep oter well types same concentrations
+            # Apply dilution factor for samples only and keep other well types same concentrations
             if conc is not None and well_type == 'SAMPLE':
                 conc_corrected = conc * self.dilution_factor
             else:

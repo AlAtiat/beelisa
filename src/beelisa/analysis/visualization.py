@@ -466,3 +466,141 @@ class ELISAVisualizer:
         plt.close(fig)
 
         return temp_file
+
+    def create_trend_plot(
+        self,
+        plot_df: pd.DataFrame,
+        value_column: str,
+        grouping_column: str = None,
+        plate_groups: dict = None,
+        title: str = "Trend",
+        colormap: str = "viridis",
+        y_label: str = None,
+        x_label: str = None
+    ) -> str:
+        """
+        Create line plot for trend analysis.
+
+        Args:
+            plot_df: DataFrame with '_x' and value columns
+            value_column: Column name for Y-axis
+            grouping_column: Optional column for color grouping
+            plate_groups: Optional dict {"Group": ["Plate1", ...]} for marker shapes
+            title: Plot title
+            colormap: Matplotlib colormap name for line colors
+            y_label: Display name for Y-axis (defaults to value_column display name)
+            x_label: Display name for X-axis (defaults to 'X')
+
+        Returns:
+            Path to PNG file
+        """
+        import seaborn as sns
+        sns.set_style("whitegrid")
+        fig, ax = plt.subplots(figsize=(12, 6))
+
+        MARKERS = ['o', 's', '^', 'D', 'v', 'p', '*', 'X', 'P', 'h']
+
+        # Get display name for Y-axis
+        if y_label is None:
+            y_label = DISPLAY_NAMES.get(value_column, value_column.replace('_', ' ').title())
+
+        y_axis_label = y_label
+        if value_column in ['concentration', 'concentration_dilution_corrected']:
+            y_axis_label = f'{y_label} ({self.concentration_unit})'
+        elif value_column == 'od_value':
+            y_axis_label = f'{y_label} ({self.od_wavelength})'
+
+        if x_label is None:
+            x_label = 'X'
+
+        # Map plate_name to plate group for shapes
+        plate_to_group = {}
+        if plate_groups and 'plate_name' in plot_df.columns:
+            for group_name, plates in plate_groups.items():
+                for plate in plates:
+                    plate_to_group[plate] = group_name
+            plot_df = plot_df.copy()
+            plot_df['_plate_group'] = plot_df['plate_name'].map(plate_to_group)
+
+        has_color = grouping_column and grouping_column != 'None'
+        has_shape = plate_groups and plate_to_group
+
+        cmap = plt.get_cmap(colormap)
+        legend_handles = []
+
+        if has_color and has_shape:
+            # Both color (grouping_column) and shape (plate_groups)
+            color_groups = plot_df[grouping_column].unique()
+            shape_groups = list(plate_groups.keys())
+            n_colors = len(color_groups)
+            colors = {g: cmap(i / max(n_colors - 1, 1)) for i, g in enumerate(color_groups)}
+
+            for i, shape_group in enumerate(shape_groups):
+                marker = MARKERS[i % len(MARKERS)]
+                for color_group in color_groups:
+                    mask = (plot_df[grouping_column] == color_group) & (plot_df['_plate_group'] == shape_group)
+                    subset = plot_df[mask].sort_values('_x')
+                    if len(subset) > 0:
+                        ax.plot(subset['_x'], subset[value_column],
+                                marker=marker, color=colors[color_group],
+                                linewidth=2, markersize=8, alpha=0.8, linestyle='-')
+
+            # Color legend
+            for g in color_groups:
+                legend_handles.append(plt.Line2D([0], [0], color=colors[g], linewidth=2, label=str(g)))
+
+            # Shape legend
+            for i, sg in enumerate(shape_groups):
+                legend_handles.append(plt.Line2D([0], [0], marker=MARKERS[i % len(MARKERS)],
+                                                  color='gray', linewidth=0, markersize=8, label=f'{sg}'))
+
+            ax.legend(handles=legend_handles, bbox_to_anchor=(1.02, 1), loc='upper left')
+
+        elif has_color:
+            # color grouping
+            unique_groups = plot_df[grouping_column].unique()
+            n_groups = len(unique_groups)
+            colors = [cmap(i / max(n_groups - 1, 1)) for i in range(n_groups)]
+
+            for i, group in enumerate(unique_groups):
+                group_data = plot_df[plot_df[grouping_column] == group].sort_values('_x')
+                ax.plot(group_data['_x'], group_data[value_column],
+                        marker='o', label=str(group), color=colors[i],
+                        linewidth=2, markersize=8, alpha=0.8)
+
+            legend_title = DISPLAY_NAMES.get(grouping_column, grouping_column.replace('_', ' ').title())
+            ax.legend(title=legend_title, bbox_to_anchor=(1.02, 1), loc='upper left')
+
+        elif has_shape:
+            # shape grouping (plate groups)
+            shape_groups = list(plate_groups.keys())
+            n_groups = len(shape_groups)
+            colors = [cmap(i / max(n_groups - 1, 1)) for i in range(n_groups)]
+
+            for i, shape_group in enumerate(shape_groups):
+                marker = MARKERS[i % len(MARKERS)]
+                subset = plot_df[plot_df['_plate_group'] == shape_group].sort_values('_x')
+                if len(subset) > 0:
+                    ax.plot(subset['_x'], subset[value_column],
+                            marker=marker, label=str(shape_group), color=colors[i],
+                            linewidth=2, markersize=8, alpha=0.8)
+
+            ax.legend(title='Plate Group', bbox_to_anchor=(1.02, 1), loc='upper left')
+
+        else:
+            # No grouping
+            line_color = cmap(0.6)
+            ax.plot(plot_df['_x'], plot_df[value_column], marker='o', color=line_color,
+                    linewidth=2, markersize=8, alpha=0.8)
+
+        ax.set_xlabel(x_label, fontsize=12, fontweight='bold')
+        ax.set_ylabel(y_axis_label, fontsize=12, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
+        ax.grid(True, alpha=0.3)
+        plt.xticks(rotation=45, ha='right')
+
+        temp_file = self._generate_unique_filename('trend_plot')
+        fig.savefig(temp_file, dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
+
+        return temp_file

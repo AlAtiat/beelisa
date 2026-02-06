@@ -204,6 +204,53 @@ class AnalysisView:
         heatmap_cmap_box.add(heatmap_cmap_label, self.heatmap_colormap)
         config_box.add(heatmap_cmap_box)
 
+        # Trend Analysis Settings
+        config_box.add(toga.Divider())
+        trend_header = toga.Label(
+            'Trend Analysis Settings:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        config_box.add(trend_header)
+
+        # Trend X-axis variable
+        trend_date_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        trend_date_label = toga.Label(
+            'X-Axis Variable:',
+            style=Pack(margin=5, width=150)
+        )
+        self.trend_date_var = toga.Selection(
+            items=['None'],
+            style=Pack(flex=1, margin=5)
+        )
+        trend_date_box.add(trend_date_label, self.trend_date_var)
+        config_box.add(trend_date_box)
+
+        # Trend value variable
+        trend_value_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        trend_value_label = toga.Label(
+            'Value Column:',
+            style=Pack(margin=5, width=150)
+        )
+        self.trend_value_var = toga.Selection(
+            items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
+            style=Pack(flex=1, margin=5)
+        )
+        trend_value_box.add(trend_value_label, self.trend_value_var)
+        config_box.add(trend_value_box)
+
+        # Trend grouping variable
+        trend_group_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        trend_group_label = toga.Label(
+            'Grouping Column:',
+            style=Pack(margin=5, width=150)
+        )
+        self.trend_grouping_var = toga.Selection(
+            items=['None'],
+            style=Pack(flex=1, margin=5)
+        )
+        trend_group_box.add(trend_group_label, self.trend_grouping_var)
+        config_box.add(trend_group_box)
+
         return config_box
 
     def create_plate_grouping_section(self):
@@ -321,6 +368,17 @@ class AnalysisView:
             sample_id_display = COLUMN_DISPLAY_NAMES.get('sample_id', 'Sample ID')
             if sample_id_display in display_items:
                 self.heatmap_label_var.value = sample_id_display
+
+        # Update trend variable selectors
+        if hasattr(self, 'trend_date_var') and self.trend_date_var:
+            self.trend_date_var.items = ['None'] + display_items
+
+        if hasattr(self, 'trend_value_var') and self.trend_value_var:
+            self.trend_value_var.items = ['None'] + display_items
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+
+        if hasattr(self, 'trend_grouping_var') and self.trend_grouping_var:
+            self.trend_grouping_var.items = ['None'] + display_items
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -592,6 +650,15 @@ class AnalysisView:
         heatmap_size_var = mapping.get(heatmap_size_display, 'None') if heatmap_size_display != 'None' else 'None'
         heatmap_label_var = mapping.get(heatmap_label_display, 'None') if heatmap_label_display != 'None' else 'None'
 
+        # Get trend settings - convert display names back to column names
+        trend_date_display = self.trend_date_var.value if hasattr(self, 'trend_date_var') else 'None'
+        trend_value_display = self.trend_value_var.value if hasattr(self, 'trend_value_var') else 'None'
+        trend_grouping_display = self.trend_grouping_var.value if hasattr(self, 'trend_grouping_var') else 'None'
+
+        trend_date_var = mapping.get(trend_date_display, 'None') if trend_date_display != 'None' else 'None'
+        trend_value_var = mapping.get(trend_value_display, 'concentration_dilution_corrected') if trend_value_display != 'None' else 'None'
+        trend_grouping_var = mapping.get(trend_grouping_display, 'None') if trend_grouping_display != 'None' else 'None'
+
         # Update app config
         self.app.analysis_config = {
             'calibrant_concentrations': calibrant_config,
@@ -602,7 +669,10 @@ class AnalysisView:
             'heatmap_color_var': heatmap_color_var,
             'heatmap_size_var': heatmap_size_var,
             'heatmap_label_var': heatmap_label_var,
-            'heatmap_colormap': heatmap_colormap
+            'heatmap_colormap': heatmap_colormap,
+            'trend_date_var': trend_date_var,
+            'trend_value_var': trend_value_var,
+            'trend_grouping_var': trend_grouping_var
         }
 
         # Run analysis

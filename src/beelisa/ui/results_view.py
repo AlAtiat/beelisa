@@ -94,7 +94,6 @@ class ResultsView:
             style=Pack(margin=2, flex=1)
         )
 
-
         self.plot_heatmap_btn = toga.Button(
             'Plate Heatmap',
             on_press=self.on_show_heatmap,
@@ -107,10 +106,17 @@ class ResultsView:
             style=Pack(margin=2, flex=1)
         )
 
+        self.plot_trend_btn = toga.Button(
+            'Trend Analysis',
+            on_press=self.on_show_trend,
+            style=Pack(margin=2, flex=1)
+        )
+
         plot_buttons_box.add(
             self.plot_std_curve_btn,
             self.plot_heatmap_btn,
-            self.plot_pca_btn
+            self.plot_pca_btn,
+            self.plot_trend_btn
         )
 
         plots_box.add(plot_buttons_box)
@@ -435,8 +441,62 @@ class ResultsView:
             except Exception as e:
                 self.app.log(f'Error creating heatmap for {plate_name}: {str(e)}')
 
+        # trend plot
+        trend_date = self.app.analysis_config.get('trend_date_var')
+        trend_value = self.app.analysis_config.get('trend_value_var')
+        trend_group = self.app.analysis_config.get('trend_grouping_var')
+
+        if trend_date and trend_date != 'None' and trend_value and trend_value != 'None':
+            try:
+                from ..analysis.visualization import DISPLAY_NAMES
+
+                # Prepare data inline 
+                plot_df = results['data_df'].copy()
+                if 'well_type' in plot_df.columns:
+                    plot_df = plot_df[plot_df['well_type'] == 'SAMPLE']
+
+                plot_df['_x'] = plot_df[trend_date]
+
+                # Clean _x column convert floats that are whole numbers to int might be specific to our case only because of importing from excel
+                if plot_df['_x'].dtype == 'float64':
+                    non_null = plot_df['_x'].dropna()
+                    if len(non_null) > 0:
+                        try:
+                            if (non_null == non_null.astype(int)).all():
+                                plot_df['_x'] = plot_df['_x'].apply(
+                                    lambda x: int(x) if pd.notna(x) else x
+                                )
+                        except (ValueError, OverflowError):
+                            pass
+
+                plot_df[trend_value] = pd.to_numeric(plot_df[trend_value], errors='coerce')
+
+                group = trend_group if trend_group != 'None' else None
+                cols_to_check = ['_x', trend_value]
+                if group:
+                    cols_to_check.append(group)
+
+                plot_df = plot_df.dropna(subset=cols_to_check).sort_values('_x')
+
+                if len(plot_df) > 0:
+                    y_label = DISPLAY_NAMES.get(trend_value, trend_value.replace('_', ' ').title())
+                    x_label = DISPLAY_NAMES.get(trend_date, trend_date.replace('_', ' ').title())
+
+                    trend_path = visualizer.create_trend_plot(
+                        plot_df, trend_value, group,
+                        plate_groups=self.app.plate_groups if hasattr(self.app, 'plate_groups') else None,
+                        title=f'Trend: {y_label} vs {x_label}',
+                        colormap=heatmap_colormap,
+                        y_label=y_label,
+                        x_label=x_label
+                    )
+                    self.current_plots['trend'] = trend_path
+                    self.app.log(f'Created trend plot for {trend_value}')
+            except Exception as e:
+                self.app.log(f'Error creating trend plot: {str(e)}')
+
         # Update plate selector with available plates
-        plate_names = [k for k in self.current_plots.keys() if k != 'pca']
+        plate_names = [k for k in self.current_plots.keys() if k not in ('pca', 'trend', 'correlation_heatmap')]
         self.app.log(f'Generated plots for {len(plate_names)} plate(s)')
 
         if plate_names:
@@ -520,11 +580,46 @@ class ResultsView:
             await self.app.main_window.dialog(
                 toga.InfoDialog('No PCA', 'PCA analysis requires at least 2 plate groups to be defined.')
             )
+            
+    async def on_show_correlation_heatmap(self, widget):
+        """Display Correlation Heatmap plot."""
+        if not self.current_plots:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
+            )
+            return
+
+        if 'correlation_heatmap' in self.current_plots:
+            path = self.current_plots['correlation_heatmap']
+            self.plot_imageview.image = path
+            self.current_plot_type = 'correlation_heatmap'
+            self.app.log('Displaying Correlation Heatmap by plate groups')
+        else:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Correlation Heatmap', 'Correlation Heatmap not available for this result')
+            )
+
+
+
+    async def on_show_trend(self, widget):
+        """Display trend plot (generated during analysis)."""
+        if 'trend' in self.current_plots:
+            self.plot_imageview.image = self.current_plots['trend']
+            self.current_plot_type = 'trend'
+            self.app.log('Displaying trend plot')
+        else:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Trend Plot',
+                    'Please configure trend settings in Analysis tab and run analysis.')
+            )
+
+
 
     async def on_plate_selection_changed(self, widget):
         """Update displayed plot when plate selection changes."""
         if not self.current_plot_type or self.current_plot_type == 'pca':
-            # Don't refresh if no plot is shown or if PCA is shown (PCA is not plate-specific)
+            return
+        if not self.current_plot_type or self.current_plot_type == 'correlation_heatmap':
             return
 
         selected_plate = self.plate_selector.value
@@ -538,6 +633,29 @@ class ResultsView:
             self.plot_imageview.image = path
             self.app.log(f'Switched to {self.current_plot_type} plot for {selected_plate}')
 
+
+
+
+    # def _clean_display_df(self, df: pd.DataFrame) -> pd.DataFrame:
+    #     """Convert float columns that are actually integers back to int for display."""
+    #     result = df.copy()
+    #     for col in result.columns:
+    #         if result[col].dtype == 'float64':
+    #             non_null = result[col].dropna()
+    #             if len(non_null) > 0:
+    #                 # Check if all non-null values are whole numbers
+    #                 try:
+    #                     if (non_null == non_null.astype(int)).all():
+    #                         # Convert to string with int formatting (handles NaN as empty)
+    #                         result[col] = result[col].apply(
+    #                             lambda x: '' if pd.isna(x) else str(int(x))
+    #                         )
+    #                 except (ValueError, OverflowError):
+    #                     # Keep as float if conversion fails
+    #                     pass
+    #     return result
+    
+    
     async def on_export_all_zip(self, widget):
         """Export all results as a ZIP archive."""
         if self.app.analysis_results is None:
@@ -557,8 +675,12 @@ class ResultsView:
 
             if file_path:
                 with zipfile.ZipFile(str(file_path), 'w', zipfile.ZIP_DEFLATED) as zipf:
+                    # # Add results CSV (clean float columns that should be integers)
+                    # clean_df = self._clean_display_df(self.app.analysis_results['data_df'])
+                    # csv_content = clean_df.to_csv(index=False)
                     # Add results CSV
                     csv_content = self.app.analysis_results['data_df'].to_csv(index=False)
+
                     zipf.writestr('results/analysis_results.csv', csv_content)
 
                     # Add QC report
@@ -587,7 +709,17 @@ class ResultsView:
                         pca_path = self.current_plots['pca']
                         if os.path.exists(pca_path):
                             zipf.write(pca_path, 'plots/pca_analysis.png')
+                            
+                    if 'trend' in self.current_plots:
+                        trend_path = self.current_plots['trend']
+                        if os.path.exists(trend_path):
+                            zipf.write(trend_path, 'plots/trend.png')
 
+                    if 'correlation_heatmap' in self.current_plots:
+                        correlation_heatmap_path = self.current_plots['correlation_heatmap']
+                        if os.path.exists(correlation_heatmap_path):
+                            zipf.write(correlation_heatmap_path, 'plots/correlation_heatmap.png')
+                            
                     # Add all heatmaps
                     for plate_name, plots in self.current_plots.items():
                         if plate_name == 'pca':
