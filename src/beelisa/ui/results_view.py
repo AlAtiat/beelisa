@@ -499,43 +499,51 @@ class ResultsView:
                 y_label = DISPLAY_NAMES.get(trend_value, trend_value.replace('_', ' ').title())
                 x_label = DISPLAY_NAMES.get(trend_date, trend_date.replace('_', ' ').title())
 
-                # Detect TNM and build trend jobs
+                # Detect TNM/UICC and build trend jobs
                 detector = ClinicalDataProcessor()
                 x_is_tnm = detector.detect_column_type(plot_df[trend_date]) == 'tnm'
                 group_is_tnm = (group and group in plot_df.columns
                                 and detector.detect_column_type(plot_df[group]) == 'tnm')
+                x_is_uicc = (not x_is_tnm and detector._is_uicc_like(plot_df[trend_date]))
+                group_is_uicc = (not group_is_tnm and group and group in plot_df.columns
+                                 and detector._is_uicc_like(plot_df[group]))
 
                 trend_jobs = []
                 tnm = TNMProcessor()
 
                 if x_is_tnm:
-                    # TNM as x-axis: parse into STRING stage columns (categorical)
-                    parsed_df = tnm.parse_tnm_column(plot_df, trend_date)
-                    for stage_col in tnm.get_stage_columns():
+                    # TNM as x-axis: use display columns (T2A, N1, M0) with X/HEP cleaned
+                    parsed_df = tnm.process(plot_df, trend_date)
+                    for stage_col in tnm.get_display_columns():
                         if stage_col in parsed_df.columns and parsed_df[stage_col].notna().sum() >= 5:
-                            stage_display = stage_col.replace('_', ' ')
+                            stage_display = stage_col.replace('_display', '').replace('_', ' ')
                             trend_jobs.append({
                                 'df': parsed_df, 'x_col': stage_col, 'group': group,
                                 'x_label': stage_display,
                                 'title': f'Trend: {y_label} by {stage_display}',
-                                'prefix': stage_col.replace('_Stage', '').replace('_', ''),
+                                'prefix': stage_col.replace('_Stage_display', '').replace('_', ''),
                             })
                 elif group_is_tnm:
-                    # TNM as grouping: parse into STRING stage columns (categorical groups)
-                    parsed_df = tnm.parse_tnm_column(plot_df, group)
-                    for stage_col in tnm.get_stage_columns():
+                    # TNM as grouping: use display columns (T2A, N1, M0) with X/HEP cleaned
+                    parsed_df = tnm.process(plot_df, group)
+                    for stage_col in tnm.get_display_columns():
                         if stage_col in parsed_df.columns and parsed_df[stage_col].notna().sum() >= 5:
-                            stage_display = stage_col.replace('_', ' ')
+                            stage_display = stage_col.replace('_display', '').replace('_', ' ')
                             trend_jobs.append({
                                 'df': parsed_df, 'x_col': trend_date, 'group': stage_col,
                                 'x_label': x_label,
                                 'title': f'Trend: {y_label} grouped by {stage_display}',
-                                'prefix': stage_col.replace('_Stage', '').replace('_', ''),
+                                'prefix': stage_col.replace('_Stage_display', '').replace('_', ''),
                             })
                 else:
-                    # Normal: single job
+                    # Normal/UICC: single job (clean UICC values if detected)
+                    job_df = plot_df.copy()
+                    if x_is_uicc:
+                        job_df[trend_date] = job_df[trend_date].apply(detector._clean_uicc_value)
+                    if group_is_uicc and group:
+                        job_df[group] = job_df[group].apply(detector._clean_uicc_value)
                     trend_jobs.append({
-                        'df': plot_df, 'x_col': trend_date, 'group': group,
+                        'df': job_df, 'x_col': trend_date, 'group': group,
                         'x_label': x_label,
                         'title': f'Trend: {y_label} vs {x_label}',
                         'prefix': None,
@@ -617,8 +625,8 @@ class ResultsView:
                     violin_cols = processor.get_violin_columns()
                     for col in violin_cols:
                         if col in clinical_df.columns and clinical_df[col].notna().sum() >= 5:
-                            col_display = col.replace('_num', '').replace('_', ' ')
-                            col_safe = col.replace('_num', '').lower().replace(' ', '_')
+                            col_display = col.replace('_display', '').replace('_num', '').replace('_clean', '').replace('_', ' ')
+                            col_safe = col.replace('_display', '').replace('_num', '').replace('_clean', '').lower().replace(' ', '_')
 
                             # Unified violin (all plates) — index 0
                             violin_path = visualizer.create_violin_plot(
@@ -633,7 +641,7 @@ class ResultsView:
                                 clinical_plots_created += 1
 
                             # Per-group violins — index 1, 2, ...
-                            if hasattr(self.app, 'plate_groups') and self.app.plate_groups and 'plate_name' in clinical_df.columns:
+                            if hasattr(self.app, 'plate_groups') and self.app.plate_groups and len(self.app.plate_groups) > 1 and 'plate_name' in clinical_df.columns:
                                 for g_idx, (group_name, group_plates) in enumerate(self.app.plate_groups.items(), 1):
                                     group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
                                     if col in group_df.columns and group_df[col].notna().sum() >= 5:
@@ -660,15 +668,14 @@ class ResultsView:
 
                 # Correlation heatmaps: unified + per-group
                 if all_analysis_cols:
-                    corr_check_cols = [c for c in all_analysis_cols + [clinical_biomarker] if c in clinical_df.columns]
-                    n_all = len(clinical_df.dropna(subset=corr_check_cols))
+                    n_all = clinical_df[clinical_biomarker].notna().sum()
 
                     # Unified correlation heatmap — index 0
                     corr_path = visualizer.create_correlation_heatmap(
                         clinical_df,
                         all_analysis_cols,
                         clinical_biomarker,
-                        title=f'Clinical Correlation \u2014 All Data (n={n_all})',
+                        title=f'Clinical Correlation \u2014 All Data',
                         colormap=plots_colormap,
                         display_mapping=all_display_mapping,
                         column_groups=all_column_groups
@@ -678,16 +685,16 @@ class ResultsView:
                         clinical_plots_created += 1
 
                     # Per-group correlation heatmaps — index 1, 2, ...
-                    if hasattr(self.app, 'plate_groups') and self.app.plate_groups and 'plate_name' in clinical_df.columns:
+                    if hasattr(self.app, 'plate_groups') and self.app.plate_groups and len(self.app.plate_groups) > 1 and 'plate_name' in clinical_df.columns:
                         for g_idx, (group_name, group_plates) in enumerate(self.app.plate_groups.items(), 1):
                             group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
-                            n_group = len(group_df.dropna(subset=corr_check_cols))
-                            if n_group >= 5:
+                            n_group = group_df[clinical_biomarker].notna().sum()
+                            if n_group >= 2:
                                 group_corr_path = visualizer.create_correlation_heatmap(
                                     group_df,
                                     all_analysis_cols,
                                     clinical_biomarker,
-                                    title=f'Clinical Correlation \u2014 {group_name} (n={n_group})',
+                                    title=f'Clinical Correlation \u2014 {group_name}',
                                     colormap=plots_colormap,
                                     display_mapping=all_display_mapping,
                                     column_groups=all_column_groups

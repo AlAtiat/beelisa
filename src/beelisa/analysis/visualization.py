@@ -45,6 +45,11 @@ def _smart_sort_key(value):
     m = re.match(r'^(\d+)([A-Za-z])$', s)
     if m:
         return (0, float(m.group(1)), m.group(2).upper(), s)
+    # 4.5. Letter prefix + number + optional suffix (T3, N2a, M1, G2)
+    m = re.match(r'^([A-Za-z]+)(\d+)([A-Za-z]?)$', s)
+    if m:
+        suffix = m.group(3).upper() if m.group(3) else ''
+        return (0.5, m.group(1).lower(), float(m.group(2)), suffix)
     # 5. Natural sort: extract leading number from string
     m = re.match(r'(\d+)', s)
     if m:
@@ -84,10 +89,13 @@ class ELISAVisualizer:
         # Set matplotlib style https://matplotlib.org/stable/gallery/style_sheets/
         plt.style.use('ggplot')
 
+    _file_counter = 0
+
     def _generate_unique_filename(self, prefix: str) -> str:
         """Generate unique filename to avoid file locking issues on Windows."""
+        ELISAVisualizer._file_counter += 1
         timestamp = int(time.time())
-        return os.path.join(self.temp_dir, f'{prefix}_{timestamp}.png')
+        return os.path.join(self.temp_dir, f'{prefix}_{timestamp}_{ELISAVisualizer._file_counter}.png')
 
     def create_standard_curve_plot(
         self,

@@ -52,13 +52,26 @@ class TNMProcessor:
     - Ranges: G1-2, pT2-3 (takes higher value for clinical safety)
     """
 
-    # Regex patterns for extraction
+    # Regex patterns for extraction (captures optional substage letter a-c and ranges)
     PATTERNS = {
-        'T_Stage': r'[pyuc]*T(\d+|x)',      # [pyuc]* allows ypT3, cpT2, etc.
-        'N_Stage': r'N(\d+|x)',              # Capture digit or x after N
-        'M_Stage': r'M(\d+|x|hep)',          # Capture digit, x, or hep after M
-        'Grade': r'G(\d+)',                  # Capture digit after G
+        'T_Stage': r'[pyuc]*T(\d+[a-c]?(?:-\d+[a-c]?)?|x)',
+        'N_Stage': r'N(\d+[a-c]?(?:-\d+[a-c]?)?|x)',
+        'M_Stage': r'M(\d+[a-c]?(?:-\d+[a-c]?)?|x|hep)',
+        'Grade': r'G(\d+(?:-\d+)?)',
     }
+
+    _PREFIXES = {'T_Stage': 'T', 'N_Stage': 'N', 'M_Stage': 'M', 'Grade': 'G'}
+
+    def _substage_value(self, s):
+        """Numeric value of a stage token for comparison: '3B' -> 3.2, '2' -> 2.0."""
+        s = s.upper()
+        m = re.match(r'^(\d+)([A-C])?$', s)
+        if m:
+            base = float(m.group(1))
+            if m.group(2):
+                base += (ord(m.group(2)) - ord('A') + 1) * 0.1
+            return base
+        return 0.0
 
     def _extract_component(self, text: str, pattern: str) -> str:
         """Extract single component using regex pattern.
@@ -68,7 +81,7 @@ class TNMProcessor:
             pattern: Regex pattern with capture group
 
         Returns:
-            Extracted value (digit or 'X') or None if not found
+            Extracted value (digit+optional suffix or 'X') or None if not found
         """
         if pd.isna(text) or not isinstance(text, str):
             return None
@@ -78,10 +91,10 @@ class TNMProcessor:
 
         if match:
             value = match.group(1).upper()
-            # Handle ranges like "1-2" -> take SECOND (higher) value for clinical safety
+            # Handle ranges like "2A-3B" -> take higher endpoint
             if '-' in value:
                 parts = value.split('-')
-                value = parts[-1]  # Take last (higher) value
+                value = max(parts, key=lambda p: self._substage_value(p))
             return value
 
         return None
@@ -106,51 +119,64 @@ class TNMProcessor:
                 lambda x: self._extract_component(x, pattern)
             )
 
+        # Create display columns with clinical prefix (T3, N1, M0, G2)
+        for stage, prefix in self._PREFIXES.items():
+            if stage in result.columns:
+                result[f'{stage}_display'] = result[stage].apply(
+                    lambda x, p=prefix: self._display_value(x, p)
+                )
+
         return result
 
-    def _to_numeric(self, value: str) -> float:
-        """Convert stage string to numeric. Returns np.nan for x/missing.
+    def _clean_stage_value(self, value):
+        """Clean a stage string for ranking. Returns NaN for unknowns.
 
-        Args:
-            value: Stage value (digit string, 'X', or None)
-
-        Returns:
-            Numeric value or np.nan
+        - None/NaN -> NaN
+        - X, Z, '' -> NaN
+        - HEP -> '1' (hepatic metastasis = M1)
+        - Otherwise -> keep uppercase string
         """
         if pd.isna(value) or value is None:
             return np.nan
-
-        value = str(value).upper().strip()
-
-        # X = unknown -> NaN
-        if value == 'X' or value == '':
+        s = str(value).upper().strip()
+        if s in ('X', 'Z', ''):
             return np.nan
+        if s == 'HEP':
+            return '1'
+        return s
 
-        # HEP = hepatic metastasis = M1 (metastasis present)
-        if value == 'HEP':
-            return 1.0
-
-        try:
-            return float(value)
-        except ValueError:
+    def _display_value(self, value, prefix):
+        """Create clinical display label: prefix + value, NaN for unknowns."""
+        if pd.isna(value) or value is None:
             return np.nan
+        s = str(value).upper().strip()
+        if s in ('X', 'Z', ''):
+            return np.nan
+        if s == 'HEP':
+            return f'{prefix}1'
+        return f'{prefix}{value}'
 
     def convert_to_ordinal(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Convert extracted stage strings to numeric ordinals.
+        """Convert extracted stage strings to integer ranks.
+
+        Sorts unique cleaned values per column using _sort_key, then assigns
+        sequential integer ranks (1, 2, 3, ...). Unknowns (X, Z) become NaN.
 
         Args:
             df: DataFrame with T_Stage, N_Stage, M_Stage, Grade columns
 
         Returns:
             DataFrame with numeric columns: T_Stage_num, N_Stage_num, M_Stage_num, Grade_num
-            'x', missing, and invalid values become np.nan
         """
         result = df.copy()
 
         for stage in ['T_Stage', 'N_Stage', 'M_Stage', 'Grade']:
             if stage not in result.columns:
                 continue
-            result[f'{stage}_num'] = result[stage].apply(self._to_numeric)
+            cleaned = result[stage].apply(self._clean_stage_value)
+            unique_valid = sorted(cleaned.dropna().unique(), key=_sort_key)
+            rank_map = {val: float(i + 1) for i, val in enumerate(unique_valid)}
+            result[f'{stage}_num'] = cleaned.map(rank_map)
 
         return result
 
@@ -169,6 +195,14 @@ class TNMProcessor:
             List of column names: ['T_Stage', 'N_Stage', 'M_Stage', 'Grade']
         """
         return ['T_Stage', 'N_Stage', 'M_Stage', 'Grade']
+
+    def get_display_columns(self) -> list:
+        """Return list of display column names (with clinical prefix).
+
+        Returns:
+            List: ['T_Stage_display', 'N_Stage_display', 'M_Stage_display', 'Grade_display']
+        """
+        return ['T_Stage_display', 'N_Stage_display', 'M_Stage_display', 'Grade_display']
 
     def process(self, df: pd.DataFrame, tnm_column: str) -> pd.DataFrame:
         """Convenience method to parse and convert in one step.
@@ -229,6 +263,54 @@ class ClinicalDataProcessor:
         # Otherwise treat as categorical strings
         return 'categorical'
 
+    def _is_uicc_like(self, series: pd.Series) -> bool:
+        """Detect if column values are UICC-like (Roman numerals with optional suffix)."""
+        sample = series.dropna().astype(str).str.strip().str.upper()
+        if len(sample) < 3:
+            return False
+        count = 0
+        for v in sample:
+            v_clean = v.replace(' ', '')
+            if v_clean in _ROMAN:
+                count += 1
+                continue
+            m = re.match(r'^([IVXLCDM]+)[A-Z]$', v_clean)
+            if m and m.group(1) in _ROMAN:
+                count += 1
+        return count > len(sample) * 0.5
+
+    def _clean_uicc_value(self, value):
+        """Clean a UICC value: valid Roman numeral (+suffix) -> keep, else NaN."""
+        if pd.isna(value):
+            return np.nan
+        s = str(value).strip()
+        upper = s.upper().replace(' ', '')
+        if upper in ('', 'INOP', 'INOP.', 'NA', 'N/A', 'UNKNOWN'):
+            return np.nan
+        if upper in _ROMAN:
+            return upper
+        m = re.match(r'^([IVXLCDM]+)([A-Z])$', upper)
+        if m and m.group(1) in _ROMAN:
+            return upper
+        return np.nan
+
+    def _process_uicc(self, result, column, series):
+        """Process UICC column: clean, rank-encode, create display column."""
+        clean_col = f'{column}_clean'
+        ord_col = f'{column}_ordinal'
+
+        result[clean_col] = series.apply(self._clean_uicc_value)
+
+        sorted_cats = sorted(result[clean_col].dropna().unique(), key=_sort_key)
+        rank_map = {cat: float(i + 1) for i, cat in enumerate(sorted_cats)}
+        result[ord_col] = result[clean_col].map(rank_map)
+
+        self.analysis_columns = [ord_col]
+        self.violin_columns = [clean_col]
+        self.category_mapping = rank_map
+        self.display_mapping[ord_col] = column.replace('_', ' ').title()
+        return result
+
     def process(self, df: pd.DataFrame, column: str) -> pd.DataFrame:
         """Process column based on detected type.
 
@@ -250,7 +332,7 @@ class ClinicalDataProcessor:
             # Use existing TNMProcessor for TNM strings
             result = self.tnm_processor.process(result, column)
             self.analysis_columns = self.tnm_processor.get_numeric_columns()
-            self.violin_columns = self.tnm_processor.get_numeric_columns()
+            self.violin_columns = self.tnm_processor.get_display_columns()
             # Display mapping: 'T_Stage_num' -> 'T Stage', etc.
             for col in self.analysis_columns:
                 self.display_mapping[col] = col.replace('_num', '').replace('_', ' ')
@@ -264,6 +346,10 @@ class ClinicalDataProcessor:
             self.display_mapping[col_name] = column.replace('_', ' ').title()
 
         else:  # categorical
+            # Check if UICC-like (Roman numeral staging)
+            if self._is_uicc_like(series):
+                return self._process_uicc(result, column, series)
+
             # Ordinal encoding: sort categories, assign positional ranks
             sorted_cats = sorted(series.dropna().unique(), key=_sort_key)
             ordinal_map = {cat: float(i + 1) for i, cat in enumerate(sorted_cats)}
@@ -285,10 +371,11 @@ class ClinicalDataProcessor:
         return self.analysis_columns
 
     def get_violin_columns(self) -> list:
-        """Return columns for violin plot x-axis (shows actual values).
+        """Return columns for violin plot x-axis (shows clinical labels).
 
         For categorical/numeric: returns original column (shows "Low", "Med", "High" or 1, 2, 3).
-        For TNM: returns _num columns (T0, T1, T2 are meaningful stage numbers).
+        For TNM: returns display columns (T3, T2A, N1, M0, G2).
+        For UICC: returns cleaned column (I, IIA, III, IVA).
 
         Returns:
             List of column names for violin grouping
