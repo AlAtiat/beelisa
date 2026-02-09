@@ -308,8 +308,9 @@ class ELISAParser:
                         "od_value": od_value
                     })
 
-            # Create dataframe for this plate (96 rows)
+            # Create dataframe for this plate, drop empty wells (NaN sample_id AND NaN od_value)
             mapped_df = pd.DataFrame(data)
+            mapped_df = mapped_df.dropna(subset=['sample_id', 'od_value'], how='all')
 
             # Merge with plate design
             plate_design = self.app.plate_design_df

@@ -84,6 +84,7 @@ class ResultsView:
 
         # Plots tab
         plots_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        plots_container = toga.ScrollContainer(content=plots_box, flex=1)
 
         # Plot navigation buttons
         plot_buttons_box = toga.Box(style=Pack(direction=ROW, margin=5))
@@ -112,11 +113,25 @@ class ResultsView:
             style=Pack(margin=2, flex=1)
         )
 
+        self.plot_correlation_btn = toga.Button(
+            'Correlation Heatmap',
+            on_press=self.on_show_correlation_heatmap,
+            style=Pack(margin=2, flex=1)
+        )
+
+        self.plot_violin_btn = toga.Button(
+            'Violin Plot',
+            on_press=self.on_show_violin,
+            style=Pack(margin=2, flex=1)
+        )
+
         plot_buttons_box.add(
             self.plot_std_curve_btn,
             self.plot_heatmap_btn,
             self.plot_pca_btn,
-            self.plot_trend_btn
+            self.plot_trend_btn,
+            self.plot_correlation_btn,
+            self.plot_violin_btn
         )
 
         plots_box.add(plot_buttons_box)
@@ -136,7 +151,7 @@ class ResultsView:
         self.results_tabs.content.append('Results Table', results_table_box)
         self.results_tabs.content.append('QC Summary', qc_box)
         self.results_tabs.content.append('Model Comparison', model_comp_box)
-        self.results_tabs.content.append('Plots', plots_box)
+        self.results_tabs.content.append('Plots', plots_container)
 
         # Export section
         export_box = toga.Box(style=Pack(direction=ROW, margin=5))
@@ -344,7 +359,7 @@ class ResultsView:
         visualizer = ELISAVisualizer(concentration_unit=unit, od_wavelength=od_wavelength)
 
         # Get colormap from config
-        plot_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
+        plot_colormap = self.app.analysis_config.get('plots_colormap', 'viridis')
 
         # Generate plots for each plate
         for plate_name, curve_result in results.get('curve_fits', {}).items():
@@ -389,6 +404,29 @@ class ResultsView:
                 else:
                     self.app.log(f'Skipping plots for {plate_name}: no calibrants or concentration column missing')
 
+        # Generate combined standard curves plot 
+        all_curve_data = []
+        for plate_name, curve_result in results.get('curve_fits', {}).items():
+            if curve_result.get('success'):
+                plate_data = results['data_df'][results['data_df']['plate_name'] == plate_name]
+                calibrants = plate_data[plate_data['well_type'] == 'CALIBRANT']
+                if not calibrants.empty and 'concentration' in calibrants.columns:
+                    conc = calibrants['concentration'].dropna().values
+                    od = calibrants.loc[calibrants['concentration'].notna(), 'od_value'].values
+                    if len(conc) > 0 and len(od) > 0:
+                        all_curve_data.append({
+                            'plate_name': plate_name, 'concentrations': conc,
+                            'od_values': od, 'curve_result': curve_result
+                        })
+        if len(all_curve_data) > 1:
+            try:
+                combined_path = visualizer.create_all_standard_curves_plot(
+                    all_curve_data, colormap=plot_colormap)
+                self.current_plots['std_curve_all'] = combined_path
+                self.app.log('Created combined standard curves plot')
+            except Exception as e:
+                self.app.log(f'Error creating combined standard curves: {str(e)}')
+
         # Generate PCA analysis - only if plate groups are defined
         if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
             from ..analysis.pca import ELISAPCAAnalyzer
@@ -405,13 +443,15 @@ class ResultsView:
                     confidence=0.95
                 )
 
+                show_plate_names = self.app.analysis_config.get('pca_show_plate_names', False)
                 pca_path = visualizer.create_pca_plot(
                     pca_result,
                     title="Plate QC Metrics - PCA by Group",
                     color_labels=pca_result['labels'],
                     color_name="Plate Group",
                     colormap=plot_colormap,
-                    ellipse_data=ellipse_data
+                    ellipse_data=ellipse_data,
+                    point_labels=pca_result['plate_names'] if show_plate_names else None
                 )
                 self.current_plots['pca'] = pca_path
                 self.app.log(f'Created plate-level PCA with {len(self.app.plate_groups)} groups')
@@ -420,7 +460,7 @@ class ResultsView:
         heatmap_color_var = self.app.analysis_config.get('heatmap_color_var', 'od_value')
         heatmap_size_var = self.app.analysis_config.get('heatmap_size_var', 'None')
         heatmap_label_var = self.app.analysis_config.get('heatmap_label_var', 'None')
-        heatmap_colormap = self.app.analysis_config.get('heatmap_colormap', 'viridis')
+        plots_colormap = self.app.analysis_config.get('plots_colormap', 'viridis')
 
         all_plate_names = list(results['data_df']['plate_name'].unique())
         for plate_name in all_plate_names:
@@ -429,7 +469,7 @@ class ResultsView:
                     data_df=results['data_df'],
                     value_column=heatmap_color_var,
                     plate_name=plate_name,
-                    colormap=heatmap_colormap,
+                    colormap=plots_colormap,
                     show_values=True,
                     size_column=heatmap_size_var if heatmap_size_var != 'None' else None,
                     label_column=heatmap_label_var if heatmap_label_var != 'None' else None
@@ -449,54 +489,225 @@ class ResultsView:
         if trend_date and trend_date != 'None' and trend_value and trend_value != 'None':
             try:
                 from ..analysis.visualization import DISPLAY_NAMES
+                from ..analysis.tnm import TNMProcessor, ClinicalDataProcessor
 
-                # Prepare data inline 
                 plot_df = results['data_df'].copy()
                 if 'well_type' in plot_df.columns:
                     plot_df = plot_df[plot_df['well_type'] == 'SAMPLE']
 
-                plot_df['_x'] = plot_df[trend_date]
-
-                # Clean _x column convert floats that are whole numbers to int might be specific to our case only because of importing from excel
-                if plot_df['_x'].dtype == 'float64':
-                    non_null = plot_df['_x'].dropna()
-                    if len(non_null) > 0:
-                        try:
-                            if (non_null == non_null.astype(int)).all():
-                                plot_df['_x'] = plot_df['_x'].apply(
-                                    lambda x: int(x) if pd.notna(x) else x
-                                )
-                        except (ValueError, OverflowError):
-                            pass
-
-                plot_df[trend_value] = pd.to_numeric(plot_df[trend_value], errors='coerce')
-
                 group = trend_group if trend_group != 'None' else None
-                cols_to_check = ['_x', trend_value]
-                if group:
-                    cols_to_check.append(group)
+                y_label = DISPLAY_NAMES.get(trend_value, trend_value.replace('_', ' ').title())
+                x_label = DISPLAY_NAMES.get(trend_date, trend_date.replace('_', ' ').title())
 
-                plot_df = plot_df.dropna(subset=cols_to_check).sort_values('_x')
+                # Detect TNM and build trend jobs
+                detector = ClinicalDataProcessor()
+                x_is_tnm = detector.detect_column_type(plot_df[trend_date]) == 'tnm'
+                group_is_tnm = (group and group in plot_df.columns
+                                and detector.detect_column_type(plot_df[group]) == 'tnm')
 
-                if len(plot_df) > 0:
-                    y_label = DISPLAY_NAMES.get(trend_value, trend_value.replace('_', ' ').title())
-                    x_label = DISPLAY_NAMES.get(trend_date, trend_date.replace('_', ' ').title())
+                trend_jobs = []
+                tnm = TNMProcessor()
 
-                    trend_path = visualizer.create_trend_plot(
-                        plot_df, trend_value, group,
+                if x_is_tnm:
+                    # TNM as x-axis: parse into STRING stage columns (categorical)
+                    parsed_df = tnm.parse_tnm_column(plot_df, trend_date)
+                    for stage_col in tnm.get_stage_columns():
+                        if stage_col in parsed_df.columns and parsed_df[stage_col].notna().sum() >= 5:
+                            stage_display = stage_col.replace('_', ' ')
+                            trend_jobs.append({
+                                'df': parsed_df, 'x_col': stage_col, 'group': group,
+                                'x_label': stage_display,
+                                'title': f'Trend: {y_label} by {stage_display}',
+                                'prefix': stage_col.replace('_Stage', '').replace('_', ''),
+                            })
+                elif group_is_tnm:
+                    # TNM as grouping: parse into STRING stage columns (categorical groups)
+                    parsed_df = tnm.parse_tnm_column(plot_df, group)
+                    for stage_col in tnm.get_stage_columns():
+                        if stage_col in parsed_df.columns and parsed_df[stage_col].notna().sum() >= 5:
+                            stage_display = stage_col.replace('_', ' ')
+                            trend_jobs.append({
+                                'df': parsed_df, 'x_col': trend_date, 'group': stage_col,
+                                'x_label': x_label,
+                                'title': f'Trend: {y_label} grouped by {stage_display}',
+                                'prefix': stage_col.replace('_Stage', '').replace('_', ''),
+                            })
+                else:
+                    # Normal: single job
+                    trend_jobs.append({
+                        'df': plot_df, 'x_col': trend_date, 'group': group,
+                        'x_label': x_label,
+                        'title': f'Trend: {y_label} vs {x_label}',
+                        'prefix': None,
+                    })
+
+                # Run each job through the SAME code path
+                for job in trend_jobs:
+                    job_df = job['df'].copy()
+                    job_df['_x'] = job_df[job['x_col']]
+
+                    # Clean whole-number floats to int
+                    if job_df['_x'].dtype == 'float64':
+                        non_null = job_df['_x'].dropna()
+                        if len(non_null) > 0:
+                            try:
+                                if (non_null == non_null.astype(int)).all():
+                                    job_df['_x'] = job_df['_x'].apply(
+                                        lambda v: int(v) if pd.notna(v) else v
+                                    )
+                            except (ValueError, OverflowError):
+                                pass
+
+                    job_df[trend_value] = pd.to_numeric(job_df[trend_value], errors='coerce')
+
+                    cols_to_check = ['_x', trend_value]
+                    if job['group']:
+                        cols_to_check.append(job['group'])
+                    job_df = job_df.dropna(subset=cols_to_check).sort_values('_x')
+
+                    if len(job_df) < 5:
+                        continue
+
+                    trend_paths = visualizer.create_trend_plot(
+                        job_df, trend_value, job['group'],
                         plate_groups=self.app.plate_groups if hasattr(self.app, 'plate_groups') else None,
-                        title=f'Trend: {y_label} vs {x_label}',
-                        colormap=heatmap_colormap,
+                        title=job['title'],
+                        colormap=plots_colormap,
                         y_label=y_label,
-                        x_label=x_label
+                        x_label=job['x_label']
                     )
-                    self.current_plots['trend'] = trend_path
-                    self.app.log(f'Created trend plot for {trend_value}')
+
+                    for key, path in trend_paths.items():
+                        if job['prefix']:
+                            key = key.replace('trend_', f'trend_tnm_{job["prefix"]}_', 1)
+                        self.current_plots[key] = path
+
+                self.app.log(f'Created trend plot(s) for {trend_value}')
             except Exception as e:
                 self.app.log(f'Error creating trend plot: {str(e)}')
 
-        # Update plate selector with available plates
-        plate_names = [k for k in self.current_plots.keys() if k not in ('pca', 'trend', 'correlation_heatmap')]
+        # Clinical Analysis (multi-column: TNM, UICC, staging, age, etc.)
+        clinical_columns = self.app.analysis_config.get('tnm_columns', [])
+        clinical_biomarker = self.app.analysis_config.get('tnm_biomarker')
+
+        if clinical_columns and clinical_biomarker and clinical_biomarker != 'None':
+            try:
+                from ..analysis.tnm import ClinicalDataProcessor
+                from ..analysis.visualization import DISPLAY_NAMES
+
+                biomarker_display = DISPLAY_NAMES.get(clinical_biomarker, clinical_biomarker.replace('_', ' ').title())
+                clinical_plots_created = 0
+
+                # Accumulators for merged correlation heatmap
+                all_analysis_cols = []
+                all_display_mapping = {}
+                all_column_groups = {}
+                clinical_df = results['data_df'].copy()
+                if 'well_type' in clinical_df.columns:
+                    clinical_df = clinical_df[clinical_df['well_type'] == 'SAMPLE']
+
+                for clinical_column in clinical_columns:
+                    if clinical_column not in clinical_df.columns:
+                        continue
+
+                    processor = ClinicalDataProcessor()
+                    clinical_df = processor.process(clinical_df, clinical_column)
+
+                    # Violin plots per variable
+                    violin_cols = processor.get_violin_columns()
+                    for col in violin_cols:
+                        if col in clinical_df.columns and clinical_df[col].notna().sum() >= 5:
+                            col_display = col.replace('_num', '').replace('_', ' ')
+                            col_safe = col.replace('_num', '').lower().replace(' ', '_')
+
+                            # Unified violin (all plates) — index 0
+                            violin_path = visualizer.create_violin_plot(
+                                clinical_df, col, clinical_biomarker,
+                                title=f'{biomarker_display} by {col_display} \u2014 All Data',
+                                colormap=plots_colormap,
+                                plate_groups=self.app.plate_groups if hasattr(self.app, 'plate_groups') else None
+                            )
+                            if violin_path:
+                                plot_key = f'clinical_violin_{col_safe}_0_all'
+                                self.current_plots[plot_key] = violin_path
+                                clinical_plots_created += 1
+
+                            # Per-group violins — index 1, 2, ...
+                            if hasattr(self.app, 'plate_groups') and self.app.plate_groups and 'plate_name' in clinical_df.columns:
+                                for g_idx, (group_name, group_plates) in enumerate(self.app.plate_groups.items(), 1):
+                                    group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
+                                    if col in group_df.columns and group_df[col].notna().sum() >= 5:
+                                        group_violin_path = visualizer.create_violin_plot(
+                                            group_df, col, clinical_biomarker,
+                                            title=f'{biomarker_display} by {col_display} \u2014 {group_name}',
+                                            colormap=plots_colormap,
+                                            plate_groups=None
+                                        )
+                                        if group_violin_path:
+                                            safe_group = group_name.replace(' ', '_')
+                                            plot_key = f'clinical_violin_{col_safe}_{g_idx}_{safe_group}'
+                                            self.current_plots[plot_key] = group_violin_path
+                                            clinical_plots_created += 1
+
+                    # Collect for merged correlation
+                    all_analysis_cols.extend(processor.get_analysis_columns())
+                    all_display_mapping.update(processor.get_display_mapping())
+                    all_column_groups.update(processor.get_column_groups())
+
+                # Update results df with all processed columns
+                results['data_df'] = clinical_df
+                self.app.analysis_results['data_df'] = clinical_df
+
+                # Correlation heatmaps: unified + per-group
+                if all_analysis_cols:
+                    corr_check_cols = [c for c in all_analysis_cols + [clinical_biomarker] if c in clinical_df.columns]
+                    n_all = len(clinical_df.dropna(subset=corr_check_cols))
+
+                    # Unified correlation heatmap — index 0
+                    corr_path = visualizer.create_correlation_heatmap(
+                        clinical_df,
+                        all_analysis_cols,
+                        clinical_biomarker,
+                        title=f'Clinical Correlation \u2014 All Data (n={n_all})',
+                        colormap=plots_colormap,
+                        display_mapping=all_display_mapping,
+                        column_groups=all_column_groups
+                    )
+                    if corr_path:
+                        self.current_plots['correlation_heatmap_0_all'] = corr_path
+                        clinical_plots_created += 1
+
+                    # Per-group correlation heatmaps — index 1, 2, ...
+                    if hasattr(self.app, 'plate_groups') and self.app.plate_groups and 'plate_name' in clinical_df.columns:
+                        for g_idx, (group_name, group_plates) in enumerate(self.app.plate_groups.items(), 1):
+                            group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
+                            n_group = len(group_df.dropna(subset=corr_check_cols))
+                            if n_group >= 5:
+                                group_corr_path = visualizer.create_correlation_heatmap(
+                                    group_df,
+                                    all_analysis_cols,
+                                    clinical_biomarker,
+                                    title=f'Clinical Correlation \u2014 {group_name} (n={n_group})',
+                                    colormap=plots_colormap,
+                                    display_mapping=all_display_mapping,
+                                    column_groups=all_column_groups
+                                )
+                                if group_corr_path:
+                                    safe_group = group_name.replace(' ', '_')
+                                    self.current_plots[f'correlation_heatmap_{g_idx}_{safe_group}'] = group_corr_path
+                                    clinical_plots_created += 1
+
+                self.app.log(f'Created {clinical_plots_created} clinical plots ({len(clinical_columns)} variable(s))')
+
+            except Exception as e:
+                self.app.log(f'Error creating clinical plots: {str(e)}')
+
+        # Update plate selector with available plates (exclude special plots)
+        plate_names = [k for k in self.current_plots.keys()
+                       if k not in ('pca', 'std_curve_all')
+                       and not k.startswith('correlation_heatmap')
+                       and not k.startswith('clinical_violin_')
+                       and not k.startswith('trend_')]
         self.app.log(f'Generated plots for {len(plate_names)} plate(s)')
 
         if plate_names:
@@ -517,50 +728,65 @@ class ResultsView:
         self.app.loading.stop()
 
     async def on_show_standard_curve(self, widget):
-        """Display standard curve plot."""
-        if not self.current_plots:
+        """Display standard curve plots - cycles through plates + combined."""
+        # Build ordered list: per-plate curves + combined
+        std_plots = []
+        for plate_name in sorted(self.current_plots.keys()):
+            plots = self.current_plots.get(plate_name)
+            if isinstance(plots, dict) and 'standard_curve' in plots:
+                std_plots.append(('std_' + plate_name, plots['standard_curve']))
+        if 'std_curve_all' in self.current_plots:
+            std_plots.append(('std_curve_all', self.current_plots['std_curve_all']))
+
+        if not std_plots:
             await self.app.main_window.dialog(
                 toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
             )
             return
 
-        # Get selected plate
-        selected_plate = self.plate_selector.value
-        if selected_plate and selected_plate in self.current_plots:
-            plots = self.current_plots[selected_plate]
-            if 'standard_curve' in plots:
-                path = plots['standard_curve']
-                self.plot_imageview.image = path
-                self.current_plot_type = 'standard_curve'
-                self.app.log(f'Displaying standard curve for {selected_plate}')
-                return
+        current_idx = -1
+        if self.current_plot_type and str(self.current_plot_type).startswith('std_'):
+            for i, (key, _) in enumerate(std_plots):
+                if key == self.current_plot_type:
+                    current_idx = i
+                    break
 
-        await self.app.main_window.dialog(
-            toga.InfoDialog('No Plot', 'Standard curve plot not available for selected plate.')
-        )
+        next_idx = (current_idx + 1) % len(std_plots)
+        next_key, next_path = std_plots[next_idx]
+
+        self.plot_imageview.image = next_path
+        self.current_plot_type = next_key
+        display_name = next_key.replace('std_', '').replace('_', ' ').title()
+        self.app.log(f'Displaying Standard Curve: {display_name}')
         
     async def on_show_heatmap(self, widget):
-        """Display Heatmap plot."""
-        if not self.current_plots:
+        """Display heatmap plots - cycles through plates."""
+        heatmap_plots = []
+        for plate_name in sorted(self.current_plots.keys()):
+            plots = self.current_plots.get(plate_name)
+            if isinstance(plots, dict) and 'heatmap' in plots:
+                heatmap_plots.append(('hm_' + plate_name, plots['heatmap']))
+
+        if not heatmap_plots:
             await self.app.main_window.dialog(
                 toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
             )
             return
 
-        # Get selected plate
-        selected_plate = self.plate_selector.value
-        if selected_plate and selected_plate in self.current_plots:
-            plots = self.current_plots[selected_plate]
-            if 'heatmap' in plots:
-                path = plots['heatmap']
-                self.plot_imageview.image = path
-                self.current_plot_type = 'heatmap'
-                self.app.log(f'Displaying Heatmap plate for {selected_plate}')
-                return
+        current_idx = -1
+        if self.current_plot_type and str(self.current_plot_type).startswith('hm_'):
+            for i, (key, _) in enumerate(heatmap_plots):
+                if key == self.current_plot_type:
+                    current_idx = i
+                    break
 
-        await self.app.main_window.dialog(
-            toga.InfoDialog('No Plot', 'Heatmap plate not available for selected plate.')
-        )
+        next_idx = (current_idx + 1) % len(heatmap_plots)
+        next_key, next_path = heatmap_plots[next_idx]
+
+        self.plot_imageview.image = next_path
+        self.current_plot_type = next_key
+        display_name = next_key.replace('hm_', '').replace('_', ' ').title()
+        self.app.log(f'Displaying Heatmap: {display_name}')
 
    
     async def on_show_pca(self, widget):
@@ -581,47 +807,111 @@ class ResultsView:
                 toga.InfoDialog('No PCA', 'PCA analysis requires at least 2 plate groups to be defined.')
             )
             
-    async def on_show_correlation_heatmap(self, widget):
-        """Display Correlation Heatmap plot."""
-        if not self.current_plots:
-            await self.app.main_window.dialog(
-                toga.InfoDialog('No Plots', 'Run analysis first to generate plots.')
-            )
-            return
-
-        if 'correlation_heatmap' in self.current_plots:
-            path = self.current_plots['correlation_heatmap']
-            self.plot_imageview.image = path
-            self.current_plot_type = 'correlation_heatmap'
-            self.app.log('Displaying Correlation Heatmap by plate groups')
-        else:
-            await self.app.main_window.dialog(
-                toga.InfoDialog('No Correlation Heatmap', 'Correlation Heatmap not available for this result')
-            )
-
 
 
     async def on_show_trend(self, widget):
-        """Display trend plot (generated during analysis)."""
-        if 'trend' in self.current_plots:
-            self.plot_imageview.image = self.current_plots['trend']
-            self.current_plot_type = 'trend'
-            self.app.log('Displaying trend plot')
-        else:
+        """Display trend plots - cycles through scatter, groups, and grid."""
+        trend_plots = sorted([k for k in self.current_plots.keys()
+                              if k.startswith('trend_')])
+
+        if not trend_plots:
             await self.app.main_window.dialog(
                 toga.InfoDialog('No Trend Plot',
                     'Please configure trend settings in Analysis tab and run analysis.')
             )
+            return
 
+        current_idx = -1
+        if self.current_plot_type and str(self.current_plot_type).startswith('trend_'):
+            try:
+                current_idx = trend_plots.index(self.current_plot_type)
+            except ValueError:
+                current_idx = -1
 
+        next_idx = (current_idx + 1) % len(trend_plots)
+        next_plot = trend_plots[next_idx]
+
+        self.plot_imageview.image = self.current_plots[next_plot]
+        self.current_plot_type = next_plot
+
+        plot_name = next_plot.replace('trend_', '').replace('_', ' ').title()
+        self.app.log(f'Displaying Trend: {plot_name}')
+
+    async def on_show_correlation_heatmap(self, widget):
+        """Display clinical correlation plots - cycles through all/per-group."""
+        corr_keys = sorted([k for k in self.current_plots.keys()
+                            if k.startswith('correlation_heatmap')])
+
+        if not corr_keys:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Correlation Plot',
+                    'Select grouping column and biomarker in Analysis tab, then run analysis.')
+            )
+            return
+
+        current_idx = -1
+        if (self.current_plot_type
+                and str(self.current_plot_type).startswith('correlation_heatmap')):
+            try:
+                current_idx = corr_keys.index(self.current_plot_type)
+            except ValueError:
+                current_idx = -1
+
+        next_idx = (current_idx + 1) % len(corr_keys)
+        next_key = corr_keys[next_idx]
+
+        self.plot_imageview.image = self.current_plots[next_key]
+        self.current_plot_type = next_key
+
+        display_name = next_key.replace('correlation_heatmap_', '').replace('_', ' ').title()
+        self.app.log(f'Displaying Correlation: {display_name}')
+
+    async def on_show_violin(self, widget):
+        """Display clinical violin plots - cycles through all available violin plots."""
+        # Get all violin plots (supports both old tnm_violin_* and new clinical_violin_* keys)
+        violin_plots = sorted([k for k in self.current_plots.keys()
+                               if 'violin' in k and ('clinical_' in k)])
+
+        if not violin_plots:
+            await self.app.main_window.dialog(
+                toga.InfoDialog('No Violin Plots',
+                    'Select grouping column and biomarker in Analysis tab, then run analysis.')
+            )
+            return
+
+        # Find current violin plot index
+        current_idx = -1
+        if self.current_plot_type and 'violin' in str(self.current_plot_type):
+            try:
+                current_idx = violin_plots.index(self.current_plot_type)
+            except ValueError:
+                current_idx = -1
+
+        # Cycle to next available violin plot
+        next_idx = (current_idx + 1) % len(violin_plots)
+        next_plot = violin_plots[next_idx]
+
+        self.plot_imageview.image = self.current_plots[next_plot]
+        self.current_plot_type = next_plot
+
+        # Create readable display name from key
+        plot_name = next_plot.replace('clinical_violin_', '').replace('_', ' ').title()
+        self.app.log(f'Displaying {plot_name} Violin Plot')
 
     async def on_plate_selection_changed(self, widget):
         """Update displayed plot when plate selection changes."""
         if not self.current_plot_type or self.current_plot_type == 'pca':
             return
-        if not self.current_plot_type or self.current_plot_type == 'correlation_heatmap':
+        if not self.current_plot_type or str(self.current_plot_type).startswith('correlation_heatmap'):
             return
-
+        if not self.current_plot_type or str(self.current_plot_type).startswith('trend_'):
+            return
+        if not self.current_plot_type or str(self.current_plot_type).startswith('clinical_violin_'):
+            return
+        if str(self.current_plot_type).startswith('std_'):
+            return
+        if str(self.current_plot_type).startswith('hm_'):
+            return
         selected_plate = self.plate_selector.value
         if not selected_plate or selected_plate not in self.current_plots:
             return
@@ -704,22 +994,37 @@ class ResultsView:
                             if os.path.exists(plot_path):
                                 zipf.write(plot_path, f'plots/standard_curve_{plate_name}.png')
 
+                    # Add combined standard curves plot
+                    if 'std_curve_all' in self.current_plots:
+                        path = self.current_plots['std_curve_all']
+                        if os.path.exists(path):
+                            zipf.write(path, 'plots/standard_curves_all.png')
+
                     # Add PCA plot
                     if 'pca' in self.current_plots:
                         pca_path = self.current_plots['pca']
                         if os.path.exists(pca_path):
                             zipf.write(pca_path, 'plots/pca_analysis.png')
                             
-                    if 'trend' in self.current_plots:
-                        trend_path = self.current_plots['trend']
-                        if os.path.exists(trend_path):
-                            zipf.write(trend_path, 'plots/trend.png')
+                    for plot_key in sorted(self.current_plots.keys()):
+                        if plot_key.startswith('trend_'):
+                            trend_path = self.current_plots[plot_key]
+                            if os.path.exists(trend_path):
+                                zipf.write(trend_path, f'plots/{plot_key}.png')
 
-                    if 'correlation_heatmap' in self.current_plots:
-                        correlation_heatmap_path = self.current_plots['correlation_heatmap']
-                        if os.path.exists(correlation_heatmap_path):
-                            zipf.write(correlation_heatmap_path, 'plots/correlation_heatmap.png')
-                            
+                    for plot_key in sorted(self.current_plots.keys()):
+                        if plot_key.startswith('correlation_heatmap'):
+                            corr_path = self.current_plots[plot_key]
+                            if os.path.exists(corr_path):
+                                zipf.write(corr_path, f'plots/{plot_key}.png')
+
+                    # Add TNM clinical staging plots
+                    for plot_key in self.current_plots.keys():
+                        if plot_key.startswith('clinical_violin_'):
+                            violin_path = self.current_plots[plot_key]
+                            if os.path.exists(violin_path):
+                                zipf.write(violin_path, f'plots/{plot_key}.png')
+
                     # Add all heatmaps
                     for plate_name, plots in self.current_plots.items():
                         if plate_name == 'pca':

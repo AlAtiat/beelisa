@@ -8,6 +8,7 @@ from .exponential import ExponentialModel
 from .four_pl import FourPLModel
 from .five_pl import FivePLModel
 from .registry import ModelRegistry
+from .lowess import lowess
 
 __all__ = [
     "CurveModel",
@@ -20,4 +21,5 @@ __all__ = [
     "FourPLModel",
     "FivePLModel",
     "ModelRegistry",
+    "lowess",
 ]

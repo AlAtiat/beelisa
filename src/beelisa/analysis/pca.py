@@ -55,6 +55,7 @@ class ELISAPCAAnalyzer:
         # Extract features for each plate
         feature_rows = []
         labels = []
+        plate_names = []
 
         for plate_name, curve in results.get('curve_fits', {}).items():
             if plate_name not in plate_to_group:
@@ -68,8 +69,10 @@ class ELISAPCAAnalyzer:
             # Build feature vector
             got_cv = qc.get('CALIBRANT', {}).get('cv_percent')
             cv = got_cv if (got_cv is not None and np.isfinite(got_cv)) else np.nan
-            lod_od, loq_od = lod_loq.get('lod_od'), lod_loq.get('loq_od')
-            log_lod, log_loq = (np.log10(lod_od) if (lod_od is not None and np.isfinite(lod_od) and lod_od > 0) else np.nan, np.log10(loq_od) if (loq_od is not None and np.isfinite(loq_od) and loq_od > 0) else np.nan)
+            # lod_od, loq_od = lod_loq.get('lod_od'), lod_loq.get('loq_od')
+            lod, loq = lod_loq.get('lod'), lod_loq.get('loq')
+            # log_lod, log_loq = (np.log10(lod_od) if (lod_od is not None and np.isfinite(lod_od) and lod_od > 0) else np.nan, np.log10(loq_od) if (loq_od is not None and np.isfinite(loq_od) and loq_od > 0) else np.nan)
+            log_lod, log_loq = (np.log10(lod) if (lod is not None and np.isfinite(lod) and lod > 0) else np.nan, np.log10(loq) if (loq is not None and np.isfinite(loq) and loq > 0) else np.nan)
 
             row = {
                 'log(LOD)': log_lod,
@@ -83,6 +86,7 @@ class ELISAPCAAnalyzer:
 
             feature_rows.append(row)
             labels.append(plate_to_group[plate_name])
+            plate_names.append(plate_name)
 
         if len(feature_rows) < 3:
             return None  # Need at least 3 plates for PCA because of lod loq 
@@ -94,6 +98,11 @@ class ELISAPCAAnalyzer:
         df = df.dropna(axis=1, how='any')
         if df.shape[1] < 2:
             return None
+        # Filter labels and plate_names 
+        kept_idx = df.index.tolist()
+        labels = [labels[i] for i in kept_idx]
+        plate_names = [plate_names[i] for i in kept_idx]
+
         feature_names = list(df.columns)
         X = df.to_numpy(dtype=float)
 
@@ -104,6 +113,7 @@ class ELISAPCAAnalyzer:
         return {
             'scores': scores,
             'labels': np.array(labels),
+            'plate_names': np.array(plate_names),
             'variance_explained': self.pca.explained_variance_ratio_,
             'loadings': self.pca.components_,
             'feature_names': feature_names

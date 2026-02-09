@@ -3,6 +3,7 @@
 from .analysis_engine import AnalysisEngine
 from .selection import ModelSelector, ModelComparison
 from .visualization import ELISAVisualizer
+from .tnm import TNMProcessor, ClinicalDataProcessor
 from .models import (
     CurveModel,
     FitResult,
@@ -22,6 +23,8 @@ __all__ = [
     "ModelComparison",
     "ELISAVisualizer",
     "ELISAPCAAnalyzer",
+    "TNMProcessor",
+    "ClinicalDataProcessor",
     "CurveModel",
     "FitResult",
     "LinearModel",

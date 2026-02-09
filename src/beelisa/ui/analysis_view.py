@@ -126,6 +126,34 @@ class AnalysisView:
         unit_box.add(unit_label, self.unit_input)
         config_box.add(unit_box)
         
+
+
+        # General Settings
+        config_box.add(toga.Divider())
+        General_header = toga.Label(
+            'General Configurations:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        config_box.add(General_header)
+
+
+
+        # colormap
+        cmap_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        cmap_label = toga.Label(
+            'Colormap:',
+            style=Pack(margin=5, width=150)
+        )
+        self.plots_colormap = toga.Selection(
+            items=['viridis', 'YlGnBu', 'Greys', 'coolwarm', 'berlin', 'binary', 'Wistia'],
+            style=Pack(flex=1, margin=5)
+        )
+        self.plots_colormap.value = 'coolwarm'
+        cmap_box.add(cmap_label, self.plots_colormap)
+        config_box.add(cmap_box)
+        
+
+        
         # OD Wavelength
         od_box = toga.Box(style=Pack(direction=ROW, margin=5))
         od_label = toga.Label(
@@ -139,6 +167,21 @@ class AnalysisView:
         )
         od_box.add(od_label, self.od_input)
         config_box.add(od_box)
+        
+        # PCA plate name label checkbox
+        pca_label_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        pca_label_label = toga.Label(
+            'Show Plate Names in PCA:',
+            style=Pack(margin=5, width=150)
+        )
+        self.pca_show_plate_names = toga.Switch(
+            '',
+            style=Pack(margin=5),
+            value=False
+        )
+        
+        pca_label_box.add(pca_label_label, self.pca_show_plate_names)
+        config_box.add(pca_label_box)
 
         # Heatmap configuration header
         config_box.add(toga.Divider())
@@ -190,19 +233,7 @@ class AnalysisView:
         heatmap_label_box.add(heatmap_label_label, self.heatmap_label_var)
         config_box.add(heatmap_label_box)
 
-        # Heatmap colormap
-        heatmap_cmap_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        heatmap_cmap_label = toga.Label(
-            'Colormap:',
-            style=Pack(margin=5, width=150)
-        )
-        self.heatmap_colormap = toga.Selection(
-            items=['viridis', 'YlGnBu', 'Greys', 'coolwarm', 'berlin', 'binary', 'Wistia'],
-            style=Pack(flex=1, margin=5)
-        )
-        self.heatmap_colormap.value = 'coolwarm'
-        heatmap_cmap_box.add(heatmap_cmap_label, self.heatmap_colormap)
-        config_box.add(heatmap_cmap_box)
+
 
         # Trend Analysis Settings
         config_box.add(toga.Divider())
@@ -250,6 +281,40 @@ class AnalysisView:
         )
         trend_group_box.add(trend_group_label, self.trend_grouping_var)
         config_box.add(trend_group_box)
+
+        # Correlation Analysis Settings (optional - for TNM/UICC staging correlation)
+        config_box.add(toga.Divider())
+        clinical_header = toga.Label(
+            'Correlation Analysis:',
+            style=Pack(margin=5, font_weight='bold')
+        )
+        config_box.add(clinical_header)
+
+        # Clinical data column multi-select (for TNM, UICC, staging, etc.)
+        clinical_col_label = toga.Label(
+            'Clinical Data Columns:',
+            style=Pack(margin=5)
+        )
+        config_box.add(clinical_col_label)
+
+        self.clinical_column_switches = {}
+        self.clinical_columns_container = toga.Box(
+            style=Pack(direction=COLUMN, margin=(0, 5, 5, 20))
+        )
+        config_box.add(self.clinical_columns_container)
+
+        # TNM biomarker selector
+        tnm_bio_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        tnm_bio_label = toga.Label(
+            'Biomarker Column:',
+            style=Pack(margin=5, width=150)
+        )
+        self.tnm_biomarker_var = toga.Selection(
+            items=['None', 'concentration', 'concentration_dilution_corrected'],
+            style=Pack(flex=1, margin=5)
+        )
+        tnm_bio_box.add(tnm_bio_label, self.tnm_biomarker_var)
+        config_box.add(tnm_bio_box)
 
         return config_box
 
@@ -379,6 +444,27 @@ class AnalysisView:
 
         if hasattr(self, 'trend_grouping_var') and self.trend_grouping_var:
             self.trend_grouping_var.items = ['None'] + display_items
+
+        # Update clinical column switches (multi-select)
+        if hasattr(self, 'clinical_columns_container') and self.clinical_columns_container:
+            self.clinical_columns_container.clear()
+            self.clinical_column_switches = {}
+
+            clinical_hints = ['tnm', 'uicc', 'grade', 'stage', 'figo']
+            for display_name in display_items:
+                actual_name = self.column_name_mapping.get(display_name, display_name)
+                switch = toga.Switch(display_name, style=Pack(margin=2))
+                # Auto-toggle columns that look clinical
+                if any(hint in actual_name.lower() for hint in clinical_hints):
+                    switch.value = True
+                self.clinical_column_switches[display_name] = switch
+                self.clinical_columns_container.add(switch)
+
+        if hasattr(self, 'tnm_biomarker_var') and self.tnm_biomarker_var:
+            self.tnm_biomarker_var.items = ['None'] + display_items
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            if con_display in display_items:
+                self.tnm_biomarker_var.value = con_display
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -643,7 +729,7 @@ class AnalysisView:
         heatmap_color_display = self.heatmap_color_var.value if hasattr(self, 'heatmap_color_var') else 'OD Value'
         heatmap_size_display = self.heatmap_size_var.value if hasattr(self, 'heatmap_size_var') else 'None'
         heatmap_label_display = self.heatmap_label_var.value if hasattr(self, 'heatmap_label_var') else 'None'
-        heatmap_colormap = self.heatmap_colormap.value if hasattr(self, 'heatmap_colormap') else 'viridis'
+        plots_colormap = self.plots_colormap.value if hasattr(self, 'plots_colormap') else 'viridis'
 
         mapping = getattr(self, 'column_name_mapping', {})
         heatmap_color_var = mapping.get(heatmap_color_display, 'concentration_dilution_corrected')
@@ -659,6 +745,17 @@ class AnalysisView:
         trend_value_var = mapping.get(trend_value_display, 'concentration_dilution_corrected') if trend_value_display != 'None' else 'None'
         trend_grouping_var = mapping.get(trend_grouping_display, 'None') if trend_grouping_display != 'None' else 'None'
 
+        # Get clinical column selections - collect all toggled switches
+        tnm_columns = []
+        if hasattr(self, 'clinical_column_switches'):
+            for display_name, switch in self.clinical_column_switches.items():
+                if switch.value:
+                    actual = mapping.get(display_name, display_name)
+                    tnm_columns.append(actual)
+
+        tnm_biomarker_display = self.tnm_biomarker_var.value if hasattr(self, 'tnm_biomarker_var') else 'None'
+        tnm_biomarker = mapping.get(tnm_biomarker_display, 'concentration_dilution_corrected') if tnm_biomarker_display != 'None' else 'None'
+
         # Update app config
         self.app.analysis_config = {
             'calibrant_concentrations': calibrant_config,
@@ -669,10 +766,13 @@ class AnalysisView:
             'heatmap_color_var': heatmap_color_var,
             'heatmap_size_var': heatmap_size_var,
             'heatmap_label_var': heatmap_label_var,
-            'heatmap_colormap': heatmap_colormap,
+            'plots_colormap': plots_colormap,
             'trend_date_var': trend_date_var,
             'trend_value_var': trend_value_var,
-            'trend_grouping_var': trend_grouping_var
+            'trend_grouping_var': trend_grouping_var,
+            'tnm_columns': tnm_columns,
+            'tnm_biomarker': tnm_biomarker,
+            'pca_show_plate_names': self.pca_show_plate_names.value if hasattr(self, 'pca_show_plate_names') else False
         }
 
         # Run analysis
