@@ -61,7 +61,23 @@ class BeELISA(toga.App):
             shortcut=toga.Key.MOD_1 + 'r',
             order=2,
         )
-        self.commands.add(log_cmd, refresh_cmd)
+        save_cmd = toga.Command(
+            self.save_session,
+            text='Save Session',
+            tooltip='Export current session files to a .beelisa file',
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 's',
+            order=3,
+        )
+        load_cmd = toga.Command(
+            self.load_session,
+            text='Load Session',
+            tooltip='Import a session files from a .beelisa file',
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 'o',
+            order=4,
+        )
+        self.commands.add(log_cmd, refresh_cmd, save_cmd, load_cmd)
 
         # start window
         self.main_window = toga.MainWindow(title=self.formal_name)
@@ -89,8 +105,11 @@ class BeELISA(toga.App):
             box.add(img)
         except Exception:
             pass
-
+        
+        version = self.app.version
+        author = self.app.author
         box.add(toga.Label('BeELISA', style=Pack(font_size=24, font_weight='bold', margin=10)))
+        box.add(toga.Label(f'v{version}  •  {author}', style=Pack(font_size=10, color='#666666', margin=(0,10,10,10))))
         box.add(toga.Label('Initializing\u2026', style=Pack(font_size=12, margin=5)))
         box.add(toga.ActivityIndicator(running=True, style=Pack(margin=10)))
         return box
@@ -216,6 +235,84 @@ class BeELISA(toga.App):
         finally:
             if self.loading is not None:
                 self.loading.stop()
+
+    async def save_session(self, widget=None):
+        """Export all current app state to a .beelisa session file."""
+        from .data.session_io import SessionIO
+
+        try:
+            path = await self.main_window.dialog(
+                toga.SaveFileDialog(
+                    title='Save Session',
+                    suggested_filename='session.beelisa',
+                    file_types=['beelisa'],
+                )
+            )
+            if path:
+                SessionIO.save(self, str(path))
+                self.log(f'Session saved: {path}')
+                await self.main_window.dialog(
+                    toga.InfoDialog('Session Saved', f'Session saved to:\n{path}')
+                )
+        except Exception as e:
+            await self.main_window.dialog(toga.ErrorDialog('Save Failed', str(e)))
+
+    async def load_session(self, widget=None):
+        """Import app state from a .beelisa session file."""
+        from .data.session_io import SessionIO
+
+        try:
+            path = await self.main_window.dialog(
+                toga.OpenFileDialog(
+                    title='Load Session',
+                    file_types=['beelisa'],
+                )
+            )
+            if not path:
+                return
+
+            if self.loading is not None:
+                self.loading.start()
+
+            session = SessionIO.load(str(path))
+            data = session['session_data']
+
+            # 1. Restore DataFrames and simple state
+            self.metadata_df = session['metadata_df']
+            self.plates = session['plates']
+            self.plate_design_df = session['plate_design_df']
+            self.calibrant_count = data.get('calibrant_count')
+            self.plate_groups = data.get('plate_groups', {})
+
+            # 2. Restore analysis_config — JSON stores int keys as strings
+            config = data.get('analysis_config', {})
+            cal = config.get('calibrant_concentrations', {})
+            config['calibrant_concentrations'] = {int(k): float(v) for k, v in cal.items()}
+            self.analysis_config = config
+
+            # 3. Restore PlateModel state
+            plate_model = self.view.plate_widget.model
+            state = data.get('plate_model_state', {})
+            SessionIO.restore_plate_model(plate_model, state)
+
+            # 4. Update UI widgets
+            self.view.sample_id_md.value = data.get('metadata_sample_id_column', 'TM')
+            if self.metadata_df is not None:
+                self.view.meta_status.text = f'Loaded: {len(self.metadata_df)} records'
+            self.view.refresh_plates_list()
+            self.view.plate_widget.refresh_visualization()
+
+            # 5. Full refresh — merges data, rebuilds analysis view, etc.
+            await self.perform_refresh()
+
+            self.log(f'Session loaded: {path}')
+            await self.main_window.dialog(
+                toga.InfoDialog('Session Loaded', 'Session loaded successfully!')
+            )
+        except Exception as e:
+            if self.loading is not None:
+                self.loading.stop()
+            await self.main_window.dialog(toga.ErrorDialog('Load Failed', str(e)))
 
     def show_logs(self, widget=None):
         """ Open Logs Window """

@@ -349,8 +349,8 @@ class AnalysisEngine:
         """
         Calculate LOD and LOQ using blank sample method (yet for our case negative because we dont have blank)
 
-        LOD = Mean(blank concentrations) + 3 × SD(blank concentrations)
-        LOQ = Mean(blank concentrations) + 9 × SD(blank concentrations)
+        LOD = Mean(blank od) + 3 × SD(blank od)
+        LOQ = Mean(blank od) + 9 × SD(blank od)
 
         Standard requires at least 20 blank samples, but we use minimum of 3.
         Prefers BLANK wells, falls back to NEGATIVE_CONTROL.
@@ -364,12 +364,12 @@ class AnalysisEngine:
             self.app.log('Insufficient blank samples for LOD/LOQ per Plate calculation (need at least 3) trying Globaly for all plates')
             return None, None
 
-        # Get blank concentrations (
+        # Get blank od (
         blank_od = blanks['od_value'].dropna()
         if len(blank_od) < 3:
             return None, None        
 
-        # Calculate LOD and LOQ using concentration values
+        # Calculate LOD and LOQ using od values
         mean_blank = blank_od.mean()
         std_blank = blank_od.std(ddof=1)  # Sample standard deviation
 
@@ -416,14 +416,14 @@ class AnalysisEngine:
 
         for _, row in plate_data.iterrows():
             well_type = row['well_type']
-            conc = row.get('concentration_dilution_corrected')
+            od = row.get('od_value')
 
             # Only classify SAMPLE wells
             if well_type != 'SAMPLE':
                 statuses.append('N/A')
                 continue
 
-            if conc is None or pd.isna(conc) or not np.isfinite(conc):
+            if od is None or pd.isna(od) or not np.isfinite(od):
                 statuses.append('Invalid')
                 continue
 
@@ -431,9 +431,9 @@ class AnalysisEngine:
                 statuses.append('LOD/LOQ Not Available')
                 continue
 
-            if conc < lod:
+            if od < lod:
                 statuses.append('Below detection (LOD)')
-            elif lod <= conc < loq:
+            elif lod <= od < loq:
                 statuses.append('Borderline (LOD to LOQ)')
             else:
                 statuses.append('Quantifiable (above LOQ)')
