@@ -24,6 +24,7 @@ class AnalysisView:
         self.app = app
         self.calibrant_rows = []
         self.calibrant_container = []
+        self._last_calibrant_count = None  # skip rebuild if count unchanged
 
         # Plate grouping UI elements
         self.plate_switches = {}  # {plate_name: toga.Switch}
@@ -469,6 +470,9 @@ class AnalysisView:
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
         cal_count = int(self.app.calibrant_count or 0)
+        if cal_count == self._last_calibrant_count:
+            return  # only rebuild on calibrant cound change
+        self._last_calibrant_count = cal_count
         self.calibrant_container.clear()
         self.calibrant_rows.clear()
         defaults = ["1", "10", "30", "100", "300"]
@@ -784,6 +788,7 @@ class AnalysisView:
 
         try:
             self.app.log('Starting ELISA analysis...')
+            self.app.loading.start()
             results = self.app.engine.run_analysis(self.app.connected_df)
 
             if not results['success']:
@@ -809,6 +814,10 @@ class AnalysisView:
 
         except Exception as e:
             self.app.log(f'Analysis error: {str(e)}')
+            self.app.loading.stop()
+
             await self.app.main_window.dialog(
                 toga.ErrorDialog('Analysis Error', str(e))
             )
+        finally:
+            self.app.loading.stop()

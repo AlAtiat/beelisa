@@ -1,15 +1,9 @@
+import asyncio
+
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
-from .ui.elisa_view import Mainboard
-from .ui.data_view import DataView
-from .ui.analysis_view import AnalysisView
-from .ui.results_view import ResultsView
-from .data import ELISAParser
-from .data import DataViewer
-from .analysis import AnalysisEngine
 
-import asyncio
 
 class BeELISA(toga.App):
     def startup(self):
@@ -35,10 +29,89 @@ class BeELISA(toga.App):
         self.analysis_config = {
             'calibrant_concentrations': {},
             'dilution_factor': 1.0,
-            'lod_loq_mode': 'per_plate'
+            'lod_loq_mode': 'per_plate',
         }
         self.analysis_results = None
-        
+
+        # Placeholders filled by on_running()
+        self.view = None
+        self.parser = None
+        self.viewer = None
+        self.engine = None
+        self.data_view = None
+        self.analysis_view = None
+        self.results_view = None
+        self.loading = None
+        self.content_tabs = None
+
+        # Menu commands
+        log_cmd = toga.Command(
+            self.show_logs,
+            text='Open Logs',
+            tooltip='Open Log Panel in an Extra Window',
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 'l',
+            order=1,
+        )
+        refresh_cmd = toga.Command(
+            self.refresh_data,
+            text='Refresh',
+            tooltip='Refresh all Tabs',
+            group=toga.Group.FILE,
+            shortcut=toga.Key.MOD_1 + 'r',
+            order=2,
+        )
+        self.commands.add(log_cmd, refresh_cmd)
+
+        # start window
+        self.main_window = toga.MainWindow(title=self.formal_name)
+        self.main_window.content = self._build_loading_window()
+        self.main_window.show()
+
+
+    def _build_loading_window(self):
+        """loading_window shown at application start"""
+        box = toga.Box(
+            style=Pack(
+                direction=COLUMN,
+                flex=1,
+                align_items='center',
+                justify_content='center',
+            )
+        )
+
+        try:
+            logo_path = self.paths.app / 'resources' / 'beelisa.ico'
+            img = toga.ImageView(
+                toga.Image(str(logo_path)),
+                style=Pack(width=200, height=200, margin=20),
+            )
+            box.add(img)
+        except Exception:
+            pass
+
+        box.add(toga.Label('BeELISA', style=Pack(font_size=24, font_weight='bold', margin=10)))
+        box.add(toga.Label('Initializing\u2026', style=Pack(font_size=12, margin=5)))
+        box.add(toga.ActivityIndicator(running=True, style=Pack(margin=10)))
+        return box
+
+    # run application modules and build the UI
+
+    async def on_running(self):
+        """Import modules and build the UI after loading_window is visible."""
+
+        # Yield so the OS can paint the loading_window frame
+        await asyncio.sleep(0.01)
+
+        #  imports
+        from .ui.elisa_view import Mainboard
+        from .ui.data_view import DataView
+        from .ui.analysis_view import AnalysisView
+        from .ui.results_view import ResultsView
+        from .data import ELISAParser, DataViewer
+        from .analysis import AnalysisEngine
+
+        # Instantiate subsystems
         self.view = Mainboard(self)
         self.parser = ELISAParser(self)
         self.viewer = DataViewer(self)
@@ -47,90 +120,49 @@ class BeELISA(toga.App):
         self.analysis_view = AnalysisView(self)
         self.results_view = ResultsView(self)
 
-        log = toga.Command(
-            self.show_logs,
-            text="Open Logs",
-            tooltip="Open Log Panal in an Extra Window",
-            group=toga.Group.FILE,
-            shortcut=toga.Key.MOD_1 + 'l', # shortcut for open logs is ctrl/Cmd (MOD_1) plus the added letter 
-            order=1
-        )
-            
-        # all File Commands
-        refresh = toga.Command(
-            self.refresh_data,
-            text="Refresh",
-            tooltip="Refresh all Taps",
-            group=toga.Group.FILE,
-            shortcut=toga.Key.MOD_1 + 'r', # shortcut for open logs is ctrl/Cmd (MOD_1) plus the added letter 
-            order=2
-        )
-        # all File Commands
-        self.commands.add(log, refresh)
-        
-        
-        
-        # Main window title
-        self.main_window = toga.MainWindow(title=self.formal_name)
-        
-        # Create main container
+        # Build the UI
         main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        
-
-
-
-        # Create tab container for different views
-        self.content_tabs = toga.OptionContainer(
-            style=Pack(flex=2) 
-        )
-        
-        #  tabs using the content.append() method
-        self.content_tabs.content.append("DATA IMPORT", self.create_elisa_view())
-        self.content_tabs.content.append("DATA VIEW", self.create_data_view())
-        self.content_tabs.content.append("ANALYSIS", self.create_analysis_view())
-        self.content_tabs.content.append("RESULTS", self.create_results_view())
+        self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
+        self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
+        self.content_tabs.content.append('DATA VIEW', self.create_data_view())
+        self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
+        self.content_tabs.content.append('RESULTS', self.create_results_view())
 
         main_box.add(self.content_tabs)
-        
-        
 
-        # start_analysis_btn = toga.Button("Start Analysis", on_press=self.start_analysis, style=Pack(margin=5))
-        # main_box.add(start_analysis_btn)
         self.loading = toga.ActivityIndicator(style=Pack(width=10, height=10))
-        loading_box = toga.Box(children=[self.loading], style=Pack(align_items="center", justify_content="center"))
-
+        loading_box = toga.Box(
+            children=[self.loading],
+            style=Pack(align_items='center', justify_content='center'),
+        )
         main_box.add(loading_box)
 
-        # Status bar
-        self.status_label = toga.Label(
-            "Ready",
-            style=Pack(margin=2)  
-        )
+        self.status_label = toga.Label('Ready', style=Pack(margin=2))
         main_box.add(self.status_label)
-        
+
+        # show the UI
         self.main_window.content = main_box
-        self.main_window.show()
 
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):
-        """Add a new plate to the collection"""
+        """Add a new plate to the collection."""
         self.plates.append({
-            "name": name,
-            "raw_df": raw_df,
-            "id_df": id_df,
-            "raw_filename": raw_filename,
-            "plate_id_filename": plate_id_filename
+            'name': name,
+            'raw_df': raw_df,
+            'id_df': id_df,
+            'raw_filename': raw_filename,
+            'plate_id_filename': plate_id_filename,
         })
 
     def remove_plate(self, index):
-        """Remove plate at index"""
+        """Remove plate at index."""
         if 0 <= index < len(self.plates):
             del self.plates[index]
 
     def update_plate_name(self, index, new_name):
-        """Update plate name"""
+        """Update plate name."""
         if 0 <= index < len(self.plates):
-            self.plates[index]["name"] = new_name
+            self.plates[index]['name'] = new_name
 
     # View creation methods
     def create_elisa_view(self):
@@ -152,90 +184,50 @@ class BeELISA(toga.App):
         """Create results interface"""
         return self.results_view.create_layout()
 
-    # def start_analysis(self, widget=None):
-    #     self.log('started analysis')
-    
+    # Menu actions
     def refresh_data(self, widget=None):
         """Start refreshing data in a background task from toga"""
-        self.loading.start()
+        if self.loading is not None:
+            self.loading.start()
         asyncio.create_task(self.perform_refresh())
 
     async def perform_refresh(self, widget=None):
-        """Refresh current data"""
-        
+        """Refresh current data."""
         try:
             self.parser.try_merge()
             # Update viewer if available
-            if hasattr(self, "viewer") and self.viewer is not None:
+            if hasattr(self, 'viewer') and self.viewer is not None:
                 self.viewer.update_table()
                 self.viewer.update_summary()
 
-            if hasattr(self, "data_view") and self.viewer is not None:
+            if hasattr(self, 'data_view') and self.viewer is not None:
                 self.data_view.populate_plate_filters()
 
-            
-            if hasattr(self, "analysis_view") and self.analysis_view is not None:
+            if hasattr(self, 'analysis_view') and self.analysis_view is not None:
                 self.analysis_view.update_variable_selection()
                 self.analysis_view.rebuild_calibrant_rows()
                 self.analysis_view.refresh_plate_checkboxes()
                 self.analysis_view.refresh_groups_display()
-            
-            
-            # needs to refresh each diplay correctly on its own instead
-            # rv = self.results_view
-            # if hasattr(self, 'results_view') and rv.plot_imageview.image and rv.results_table.data and rv.qc_summary.value and rv.model_comparison.value and self.analysis_results is not None:
-            #     try:
-            #         self.log('Starting ELISA analysis...')
-            #         results = self.engine.run_analysis(self.connected_df)
-
-            #         if not results['success']:
-            #             error_msg = '\n'.join(results.get('errors', ['Unknown error']))
-            #             await self.main_window.dialog(
-            #                 toga.ErrorDialog('Analysis Error', error_msg)
-            #             )
-            #             self.log('Analysis Error')
-
-            #             return
-
-            #         # Store results
-            #         self.analysis_results = results
-            #         self.log(f'Analysis completed for {len(results["curve_fits"])} plate(s)')
-
-            #         # Update display in results view
-            #         self.results_view.update_results_display(results)
-
-            #         await self.main_window.dialog(
-            #             toga.InfoDialog('Success', 'Analysis completed successfully!')
-            #         )
-            #         self.log('Success: Analysis completed successfully!')
-
-            #     except Exception as e:
-            #         self.log(f'Analysis error: {str(e)}')
-            #         await self.app.main_window.dialog(
-            #             toga.ErrorDialog('Analysis Error', str(e))
-            #         )
-
                 
-        
         except Exception as e:
-           await self.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
+            await self.main_window.dialog(toga.ErrorDialog('Error', f'Refresh failed: {str(e)}'))
+
 
         finally:
-            self.loading.stop()
-    
-    
+            if self.loading is not None:
+                self.loading.stop()
+
     def show_logs(self, widget=None):
         """ Open Logs Window """
         def build():
-            self.log_window = toga.Window(title="BeELISA Logging Window")
+            self.log_window = toga.Window(title='BeELISA Logging Window')
             self.log_textbox = toga.MultilineTextInput(
-                value = '',
-                readonly = True,
-                style=Pack(flex=1, font_size=10, margin=1, background_color='transparent')
+                value='',
+                readonly=True,
+                style=Pack(flex=1, font_size=10, margin=1, background_color='transparent'),
             )
             box = toga.Box(style=Pack(direction=COLUMN, flex=1))
             box.add(self.log_textbox)
-        
             self.log_window.content = box
 
         if self.log_window is None:
@@ -246,16 +238,14 @@ class BeELISA(toga.App):
             build()
             self.log_window.show()
 
-            
     def log(self, message: str):
-    
-        status = getattr(self, "status_label", None)
+        status = getattr(self, 'status_label', None)
         if status is not None:
             status.text = message
 
-        textbox = getattr(self, "log_textbox", None)
+        textbox = getattr(self, 'log_textbox', None)
         if textbox is not None:
-            textbox.value = (textbox.value or "") + message + "\n"
+            textbox.value = (textbox.value or '') + message + '\n'
 
 
 def main():
