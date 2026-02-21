@@ -5,7 +5,7 @@ from .base import CurveModel
 from .linear import LinearModel
 from .log_linear import LogLinearModel
 from .exponential import ExponentialModel
-from .polynomial import Polynomial2Model, Polynomial3Model
+# from .polynomial import Polynomial2Model, Polynomial3Model
 from .four_pl import FourPLModel
 from .five_pl import FivePLModel
 

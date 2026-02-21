@@ -10,8 +10,13 @@ author_email = "aun@alatiat.com"
 
 [tool.briefcase.app.beelisa]
 formal_name = "BeELISA"
-description = "BeELISA is a Python-based ELISA analysis tool developed as part of this Bachelor thesis."
-long_description = """More details about the app should go here.
+description = "BeELISA is a ELISA data analysis application developed using the BeeWare framework as part of a Bachelor thesis at Brandenburg University of Technology Cottbus-Senftenberg."
+long_description = """
+BeELISA is an analytical application designed for the standardized and reproducible
+evaluation of enzyme-linked immunosorbent assay (ELISA) data in biomedical research.
+The application was developed as part of the Bachelor thesis entitled
+Statistical Evaluation of Glycoprotein Biomarkers in Pancreatic Ductal Adenocarcinoma Using an analysis application for ELISA Data Processing and Biomarker Pattern Recognition 
+at Brandenburg University of Technology Cottbus-Senftenberg.
 icon = "src/beelisa/resources/icons/beeilsa"
 """
 sources = [

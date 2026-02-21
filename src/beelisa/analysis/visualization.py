@@ -1,7 +1,6 @@
 """ image plot visualization for ELISA analysis using matplotlib."""
 
 import os
-import re
 import tempfile
 import time
 from typing import Optional, Dict, List
@@ -10,52 +9,12 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.patches import Circle, Ellipse
-from .models.lowess import lowess as np_lowess
+from .parsers.base import sort_key as _smart_sort_key
+from .statistics import spearman_correlation, benjamini_hochberg, lowess_with_band
 
 
 # Use non-interactive
 matplotlib.use('Agg')
-
-# Roman numeral mapping for smart sorting
-_ROMAN = {
-    'I': 1, 'II': 2, 'III': 3, 'IV': 4, 'V': 5,
-    'VI': 6, 'VII': 7, 'VIII': 8, 'IX': 9, 'X': 10,
-    'XI': 11, 'XII': 12, 'XIII': 13, 'XIV': 14, 'XV': 15,
-    'XVI': 16, 'XVII': 17, 'XVIII': 18, 'XIX': 19, 'XX': 20,
-}
-
-
-def _smart_sort_key(value):
-    """Sort key handling numeric, Roman numeral (with substages), and natural sort."""
-    s = str(value).strip()
-    # 1. Pure numeric
-    try:
-        return (0, float(s), '', s)
-    except ValueError:
-        pass
-    upper = s.upper()
-    # 2. Pure Roman numeral
-    if upper in _ROMAN:
-        return (0, _ROMAN[upper], '', s)
-    # 3. Roman numeral + letter suffix (IVa, IIIb, IIA)
-    m = re.match(r'^([IVXLCDM]+)([A-Za-z])$', upper)
-    if m and m.group(1) in _ROMAN:
-        return (0, _ROMAN[m.group(1)], m.group(2), s)
-    # 4. Number + letter suffix (4a, 3b)
-    m = re.match(r'^(\d+)([A-Za-z])$', s)
-    if m:
-        return (0, float(m.group(1)), m.group(2).upper(), s)
-    # 4.5. Letter prefix + number + optional suffix (T3, N2a, M1, G2)
-    m = re.match(r'^([A-Za-z]+)(\d+)([A-Za-z]?)$', s)
-    if m:
-        suffix = m.group(3).upper() if m.group(3) else ''
-        return (0.5, m.group(1).lower(), float(m.group(2)), suffix)
-    # 5. Natural sort: extract leading number from string
-    m = re.match(r'(\d+)', s)
-    if m:
-        return (1, int(m.group(1)), '', s.lower())
-    # 6. Fallback: alphabetical
-    return (2, 0, '', s.lower())
 
 
 # Column name to display name mapping for visualization labels
@@ -594,80 +553,12 @@ class ELISAVisualizer:
         return temp_file
 
     def _compute_lowess_with_band(self, x, y, use_log_y=False, frac=0.3):
-        """LOWESS smoothing with rolling IQR band.
-
-        Args:
-            x: Numeric x values
-            y: Numeric y values
-            use_log_y: if True, fit LOWESS on log(y) and exponentiate back
-            frac: LOWESS smoothing fraction (0-1)
-
-        Returns:
-            (x_smooth, y_smooth, x_band, y_q25, y_q75) or (None,)*5
-        """
-        x = np.asarray(x, float)
-        y = np.asarray(y, float)
-
-        valid = np.isfinite(x) & np.isfinite(y)
-        if use_log_y:
-            valid &= (y > 0)
-        x, y = x[valid], y[valid]
-
-        if len(x) < 5:
-            return None, None, None, None, None
-
-        y_fit = np.log(y) if use_log_y else y.copy()
-
-        # LOWESS smoothing
-        x_smooth, y_smooth = np_lowess(x, y_fit, frac=frac)
-
-        # Rolling IQR band on sorted raw data
-        order = np.argsort(x)
-        x_sorted = x[order]
-        y_sorted = y_fit[order]
-
-        n = len(x_sorted)
-        window = max(5, int(0.2 * n))
-        half = window // 2
-
-        x_band, q25_band, q75_band = [], [], []
-        for i in range(n):
-            lo = max(0, i - half)
-            hi = min(n, i + half)
-            x_band.append(x_sorted[i])
-            q25_band.append(np.percentile(y_sorted[lo:hi], 25))
-            q75_band.append(np.percentile(y_sorted[lo:hi], 75))
-
-        # Convert back from log-space
-        if use_log_y:
-            y_smooth = np.exp(y_smooth)
-            q25_band = np.exp(np.array(q25_band))
-            q75_band = np.exp(np.array(q75_band))
-
-        return x_smooth, y_smooth, np.array(x_band), np.array(q25_band), np.array(q75_band)
+        """LOWESS smoothing with rolling IQR band """
+        return lowess_with_band(x, y, use_log_y=use_log_y, frac=frac)
 
     def _compute_spearman(self, x, y):
-        """Compute Spearman rho and p-value.
-
-        Returns:
-            (rho, pval, n) or (None, None, n)
-        """
-        from scipy import stats
-
-        x = np.asarray(x, float)
-        y = np.asarray(y, float)
-        valid = np.isfinite(x) & np.isfinite(y)
-        x, y = x[valid], y[valid]
-        n = len(x)
-
-        if n < 5:
-            return None, None, n
-
-        try:
-            rho, pval = stats.spearmanr(x, y)
-            return rho, pval, n
-        except Exception:
-            return None, None, n
+        """Compute Spearman rho and p-value"""
+        return spearman_correlation(x, y)
 
     def _build_trend_groups_info(self, plot_df, value_column, grouping_column,
                                   plate_groups, plate_to_group, has_color, has_shape, cmap):
@@ -1123,38 +1014,8 @@ class ELISAVisualizer:
         return temp_file
 
     def _benjamini_hochberg(self, pvals):
-        """Benjamini-Hochberg FDR correction.
-
-        Args:
-            pvals: 1D array of raw p-values
-
-        Returns:
-            Array of FDR-adjusted p-values (q-values)
-        """
-        pvals = np.asarray(pvals, dtype=float)
-        m = len(pvals)
-        if m == 0:
-            return pvals
-
-        sorted_idx = np.argsort(pvals)
-        sorted_pvals = pvals[sorted_idx]
-        adjusted = np.zeros(m)
-
-        # BH step-up: q_k = p_k * m / rank_k
-        for k in range(m - 1, -1, -1):
-            rank = k + 1
-            adjusted[k] = sorted_pvals[k] * m / rank
-
-        # Enforce monotonicity (cumulative min from right to left)
-        for k in range(m - 2, -1, -1):
-            adjusted[k] = min(adjusted[k], adjusted[k + 1])
-
-        adjusted = np.minimum(adjusted, 1.0)
-
-        # Map back to original order
-        result = np.zeros(m)
-        result[sorted_idx] = adjusted
-        return result
+        """Benjamini-Hochberg FDR correction"""
+        return benjamini_hochberg(pvals)
 
     def create_correlation_heatmap(
         self,
