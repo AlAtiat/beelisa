@@ -1,6 +1,6 @@
 BeELISA
 =======
-.. image:: docs/beelisa.png
+.. image:: src/beelisa/resources/beelisa.png
    :width: 300px
    :align: center
    :alt: BeELISA Logo
@@ -36,7 +36,7 @@ concentration back-calculation, quality control assessment, and correlation
 with clinical metadata.
 
 The application was developed with reproducibility as a primary objective.
-All analytical parameters — including curve model selection, data parsers for clinical metadata (e.g., TNM, UICC), and detection threshold definitions — are explicitly defined for each analysis session.
+All analytical parameters — including curve model selection, clinical metadata parsers (e.g., TNM, UICC), and detection threshold definitions — are dataset-specific yet designed to remain reusable across different datasets.
 Clinical metadata parsers are applied only when the corresponding columns (e.g., “TNM” or “UICC”) are present in the dataset.
 
 Scientific Methodology
@@ -147,13 +147,13 @@ For more information, see:
 Python 3.10+
 
 Core libraries:
-    pandas
-    numpy
-    scipy
-    scikit-learn >= 1.0.0
-    matplotlib >= 3.5.0
-    seaborn
-    openpyxl
+    pandas,
+    numpy,
+    scipy,
+    scikit-learn >= 1.0.0,
+    matplotlib >= 3.5.0,
+    seaborn,
+    openpyxl,
     toga
 
 

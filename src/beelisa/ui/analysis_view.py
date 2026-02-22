@@ -107,8 +107,7 @@ class AnalysisView:
             style=Pack(margin=5, width=150)
         )
         self.dilution_input = toga.TextInput(
-            value='101',
-            placeholder='1:101 (z. B 10 µL Probe + 1000 µL Puffer → Verdünnungsfaktor 101)',
+            placeholder='1:101 (e.g., 10 µL sample + 1000 µL buffer → dilution factor 101)',
             style=Pack(flex=1, margin=5)
         )
         dilution_box.add(dilution_label, self.dilution_input)
@@ -134,7 +133,6 @@ class AnalysisView:
             style=Pack(margin=5, width=150)
         )
         self.unit_input = toga.TextInput(
-            value='U/mL',
             placeholder='e.g., ng/mL, µg/mL, pM',
             style=Pack(flex=1, margin=5)
         )
@@ -176,8 +174,7 @@ class AnalysisView:
             style=Pack(margin=5, width=150)
         )
         self.od_input = toga.TextInput(
-            value='450/620 nm',
-            placeholder='450 nm und 620nm e.g',
+            placeholder='e.g 450 nm or 620nm',
             style=Pack(flex=1, margin=5)
         )
         od_box.add(od_label, self.od_input)
@@ -230,7 +227,7 @@ class AnalysisView:
             items=['None', 'od_value', 'concentration', 'concentration_dilution_corrected'],
             style=Pack(flex=1, margin=5)
         )
-        self.heatmap_size_var.value = 'od_value'
+        self.heatmap_size_var.value = 'None'
         heatmap_size_box.add(heatmap_size_label, self.heatmap_size_var)
         config_box.add(heatmap_size_box)
 
@@ -427,21 +424,21 @@ class AnalysisView:
         # Update heatmap variable selectors with display names
         if hasattr(self, 'heatmap_color_var') and self.heatmap_color_var:
             self.heatmap_color_var.items = display_items
-            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
-            if con_display in display_items:
-                self.heatmap_color_var.value = con_display
+            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            # if con_display in display_items:
+            #     self.heatmap_color_var.value = con_display
 
         if hasattr(self, 'heatmap_size_var') and self.heatmap_size_var:
             self.heatmap_size_var.items = ['None'] + display_items
-            od_display = COLUMN_DISPLAY_NAMES.get('od_value', 'OD Value')
-            if od_display in display_items:
-                self.heatmap_size_var.value = od_display
+            # od_display = COLUMN_DISPLAY_NAMES.get('od_value', 'OD Value')
+            # if od_display in display_items:
+            #     self.heatmap_size_var.value = od_display
 
         if hasattr(self, 'heatmap_label_var') and self.heatmap_label_var:
             self.heatmap_label_var.items = ['None'] + display_items
-            sample_id_display = COLUMN_DISPLAY_NAMES.get('sample_id', 'Sample ID')
-            if sample_id_display in display_items:
-                self.heatmap_label_var.value = sample_id_display
+            # sample_id_display = COLUMN_DISPLAY_NAMES.get('sample_id', 'Sample ID')
+            # if sample_id_display in display_items:
+            #     self.heatmap_label_var.value = sample_id_display
 
         # Update trend variable selectors
         if hasattr(self, 'trend_date_var') and self.trend_date_var:
@@ -449,7 +446,7 @@ class AnalysisView:
 
         if hasattr(self, 'trend_value_var') and self.trend_value_var:
             self.trend_value_var.items = ['None'] + display_items
-            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
 
         if hasattr(self, 'trend_grouping_var') and self.trend_grouping_var:
             self.trend_grouping_var.items = ['None'] + display_items
@@ -459,7 +456,7 @@ class AnalysisView:
             self.correlation_columns_container.clear()
             self.correlation_column_switches = {}
 
-            clinical_hints = ['tnm', 'uicc', 'grade', 'stage', 'figo']
+            clinical_hints = []
             current_row = None
             for idx, display_name in enumerate(display_items):
                 actual_name = self.column_name_mapping.get(display_name, display_name)
@@ -476,9 +473,9 @@ class AnalysisView:
 
         if hasattr(self, 'correlation_value_var') and self.correlation_value_var:
             self.correlation_value_var.items = ['None'] + display_items
-            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
-            if con_display in display_items:
-                self.correlation_value_var.value = con_display
+            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            # if con_display in display_items:
+            #     self.correlation_value_var.value = con_display
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -488,7 +485,7 @@ class AnalysisView:
         self._last_calibrant_count = cal_count
         self.calibrant_container.clear()
         self.calibrant_rows.clear()
-        defaults = ["1", "10", "30", "100", "300"]
+        defaults = []
         for order in range(cal_count):
             val = defaults[order] if order < len(defaults) else ""
             row = self.create_calibrant_row(order, initial_value=val)

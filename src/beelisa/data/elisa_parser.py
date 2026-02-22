@@ -190,13 +190,13 @@ class ELISAParser:
         return well_ids
     
     # this is only custome to our use. should be removed before deployment (replace)
-    def _base_sample_id(self, value):
-        if value is None or pd.isna(value):
-            return None
-        s = str(value).strip()
-        if s == "" or s.lower() == "nan":
-            return None
-        return s.split("/")[0]   # 201/1 → 201
+    # def _base_sample_id(self, value):
+    #     if value is None or pd.isna(value):
+    #         return None
+    #     s = str(value).strip()
+    #     if s == "" or s.lower() == "nan":
+    #         return None
+    #     return s.split("/")[0]   # 201/1 → 201
 
     def _sample_id_aliases(self, df: pd.DataFrame) -> str:
         aliases = []
@@ -232,8 +232,8 @@ class ELISAParser:
         # rename to guaranteed name
         sample_id_df = sample_id_df.rename(columns={sid_col: "sample_id"})
 
-        
-        sample_id_df["sample_id"] = sample_id_df["sample_id"].apply(self._base_sample_id)
+        # this is only custome to our use. should be removed before deployment (commented out)
+        # sample_id_df["sample_id"] = sample_id_df["sample_id"].apply(self._base_sample_id)
         self.app.log(f"Cleaned Metadata {sample_id_df.head(5).to_string()}")
 
         return sample_id_df

@@ -135,6 +135,12 @@ class DataView:
 
     def populate_plate_filters(self):
         """Populate plate checkboxes from loaded data"""
+        previously_checked = {
+            plate_name
+            for plate_name, switch in self.plate_checkboxes.items()
+            if switch.value
+        }
+
         self.plate_checkboxes_container.clear()
         self.plate_checkboxes = {}
 
@@ -158,6 +164,7 @@ class DataView:
 
                 switch = toga.Switch(
                     str(plate_name),
+                    value=plate_name in previously_checked,
                     style=Pack(margin_bottom=5)
                 )
 

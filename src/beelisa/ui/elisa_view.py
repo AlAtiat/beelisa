@@ -118,8 +118,7 @@ class Mainboard:
             style=Pack(margin=5)
         )
         self.sample_id_md = toga.TextInput(
-            value='TM',
-            placeholder='Sample_id, TM, Sample, ID, sample id',
+            placeholder='e.g., Sample_id, TM, Sample, ID, sample id',
             style=Pack(margin=5, flex=1)
         )
         sample_id_md_box.add(sample_id_md_label, self.sample_id_md)
