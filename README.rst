@@ -3,7 +3,7 @@ BeELISA
 .. raw:: html
 
    <div align="center">
-       <img src="src/beelisa/resources/beelisa.png" width="220">
+       <img src="src/beelisa/resources/icons/beelisa.png" width="220">
    </div>
 
 Version 1.0.0 | Author: Aun Al Atiat | License: GNU GPLv3
