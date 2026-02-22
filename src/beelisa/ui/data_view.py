@@ -91,12 +91,18 @@ class DataView:
         filters_row = toga.Box(style=Pack(direction=COLUMN, margin=5))
 
         # Plate filters
-        plate_filter_box = toga.Box(style=Pack(direction=ROW, margin=5, flex=1))
+        plate_filter_box = toga.Box(style=Pack(direction=COLUMN, margin=5, flex=1))
         plate_label = toga.Label('Plates:', style=Pack(margin=3, font_weight='bold'))
         plate_filter_box.add(plate_label)
 
-        self.plate_checkboxes_container = toga.Box(style=Pack(direction=ROW, margin=3, flex=1))
-        plate_filter_box.add(self.plate_checkboxes_container)
+        self.plate_checkboxes_container = toga.Box(style=Pack(direction=ROW, flex=1, margin=(0, 5, 5, 5)))
+        plate_checkboxes_scroll = toga.ScrollContainer(
+            content=self.plate_checkboxes_container,
+            style=Pack(height=80, flex=1, margin=(0, 5, 5, 5))
+        )
+        plate_filter_box.add(plate_checkboxes_scroll)
+
+
 
         # Well type filters
         well_type_filter_box = toga.Box(style=Pack(direction=ROW, margin=5, flex=1))
@@ -139,10 +145,24 @@ class DataView:
         if 'plate_name' in data_df.columns:
             unique_plates = sorted(data_df['plate_name'].unique())
 
-            for plate_name in unique_plates:
-                checkbox = toga.Switch(str(plate_name), style=Pack(margin=2))
-                self.plate_checkboxes[plate_name] = checkbox
-                self.plate_checkboxes_container.add(checkbox)
+            column_box = None
+
+            for i, plate_name in enumerate(unique_plates):
+
+                # Create a new column every 3 switches
+                if i % 3 == 0:
+                    column_box = toga.Box(
+                        style=Pack(direction=COLUMN, margin_right=15)
+                    )
+                    self.plate_checkboxes_container.add(column_box)
+
+                switch = toga.Switch(
+                    str(plate_name),
+                    style=Pack(padding_bottom=5)
+                )
+
+                self.plate_checkboxes[plate_name] = switch
+                column_box.add(switch)
 
     async def on_apply_filters(self, widget):
         """Apply selected filters"""

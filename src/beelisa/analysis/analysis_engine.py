@@ -30,7 +30,6 @@ class AnalysisEngine:
                 - glob_lod_loq: dict of LOD/LOQ values globaly
                 - errors: list of error messages (if any)
         """
-        self.app.loading.start()
         # Validate inputs
         errors = self._validate_inputs(connected_df)
         if errors:
@@ -126,9 +125,7 @@ class AnalysisEngine:
 
         # Concatenate all plate results
         results_df = pd.concat(all_plate_results, ignore_index=True)
-        
-        # self.app.log(results_df.to_string())
-        self.app.loading.stop()
+
         return {
             'success': True,
             'data_df': results_df,

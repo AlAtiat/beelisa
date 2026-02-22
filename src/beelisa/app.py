@@ -101,7 +101,7 @@ class BeELISA(toga.App):
             logo_path = self.paths.app / 'resources' / 'beelisa.ico'
             img = toga.ImageView(
                 toga.Image(str(logo_path)),
-                style=Pack(width=200, height=200, margin=20),
+                style=Pack(width=100, height=100, margin=20),
             )
             box.add(img)
         except Exception:
@@ -258,6 +258,9 @@ class BeELISA(toga.App):
         from .data.session_io import SessionIO
 
         try:
+            if self.loading is not None:
+                await asyncio.sleep(0.01)
+                self.loading.start()
             path = await self.main_window.dialog(
                 toga.SaveFileDialog(
                     title='Save Session',
@@ -271,7 +274,11 @@ class BeELISA(toga.App):
                 await self.main_window.dialog(
                     toga.InfoDialog('Session Saved', f'Session saved to:\n{path}')
                 )
+            self.loading.stop()
+
         except Exception as e:
+            if self.loading is not None:
+                self.loading.stop()
             await self.main_window.dialog(toga.ErrorDialog('Save Failed', str(e)))
 
     async def load_session(self, widget=None):
@@ -279,6 +286,9 @@ class BeELISA(toga.App):
         from .data.session_io import SessionIO
 
         try:
+            if self.loading is not None:
+                await asyncio.sleep(0.01)
+                self.loading.start()
             path = await self.main_window.dialog(
                 toga.OpenFileDialog(
                     title='Load Session',
@@ -286,10 +296,9 @@ class BeELISA(toga.App):
                 )
             )
             if not path:
+                self.loading.stop()
                 return
 
-            if self.loading is not None:
-                self.loading.start()
 
             session = SessionIO.load(str(path))
             data = session['session_data']
@@ -326,6 +335,8 @@ class BeELISA(toga.App):
             await self.main_window.dialog(
                 toga.InfoDialog('Session Loaded', 'Session loaded successfully!')
             )
+            self.loading.stop()
+
         except Exception as e:
             if self.loading is not None:
                 self.loading.stop()

@@ -1,3 +1,4 @@
+import asyncio
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
@@ -787,8 +788,9 @@ class AnalysisView:
         self.app.engine.lod_loq_mode = lod_mode
 
         try:
-            self.app.log('Starting ELISA analysis...')
+            self.app.log('Running ELISA analysis...')
             self.app.loading.start()
+            await asyncio.sleep(0.01)
             results = self.app.engine.run_analysis(self.app.connected_df)
 
             if not results['success']:
