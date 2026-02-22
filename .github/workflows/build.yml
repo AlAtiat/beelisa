@@ -19,7 +19,7 @@ jobs:
             artifact-name: beelisa-windows
           - os: macos-15
             artifact-name: beelisa-macos-arm64
-          - os: macos-12
+          - os: macos-15-intel
             artifact-name: beelisa-macos-x86_64
           - os: ubuntu-latest
             artifact-name: beelisa-linux
@@ -50,7 +50,7 @@ jobs:
       # --- Create ---
       - name: Create (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase create linux appimage
+        run: briefcase create -p linux appimage
 
       - name: Create
         if: runner.os != 'Linux'
@@ -59,7 +59,7 @@ jobs:
       # --- Build ---
       - name: Build (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase build linux appimage
+        run: briefcase build -p linux appimage
 
       - name: Build
         if: runner.os != 'Linux'
@@ -72,11 +72,11 @@ jobs:
 
       - name: Package (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase package linux appimage
+        run: briefcase package -p linux appimage
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
-        run: briefcase package --adhoc-sign
+        run: briefcase package
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

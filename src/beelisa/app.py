@@ -98,7 +98,7 @@ class BeELISA(toga.App):
         )
 
         try:
-            logo_path = self.paths.app / 'resources' / 'beelisa.ico'
+            logo_path = self.paths.app / 'resources' / 'icons' / 'beelisa.ico'
             img = toga.ImageView(
                 toga.Image(str(logo_path)),
                 style=Pack(width=100, height=100, margin=20),
