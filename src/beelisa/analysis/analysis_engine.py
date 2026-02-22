@@ -120,7 +120,7 @@ class AnalysisEngine:
 
 
             # Classify results
-            plate_data = self._classify_results(plate_data, lod, loq)
+            plate_data = self._classify_results(plate_data, lod_od, loq_od)
 
             all_plate_results.append(plate_data)
 

@@ -10,10 +10,12 @@ COLUMN_DISPLAY_NAMES = {
     'concentration': 'Raw Concentration',
     'plate_name': 'Plate Name',
     'well_id': 'Well ID',
-    'well_type': 'Well Type',
     'sample_id': 'Sample ID',
     'detection_status': 'Detection Status',
-    'order': 'Order',
+}
+
+HIDDEN_COLUMNS = {
+    'well_type', 'order', 'replicate_round', 'is_replicate', '_merge', 'merge',
 }
 
 
@@ -39,22 +41,33 @@ class AnalysisView:
         left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
         right_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
         right_container = toga.ScrollContainer(content=right_box, flex=1)
-        container = toga.SplitContainer(content=[left_container, right_container], style=Pack(direction=COLUMN, flex=1, margin=10))
+        split = toga.SplitContainer(content=[left_container, right_container], style=Pack(direction=COLUMN, flex=1, margin=10))
 
         # Configuration section
         config = self.create_configuration_section()
         left_box.add(config)
 
-        # Action buttons
-        buttons = self.create_action_buttons()
-        left_box.add(buttons)
+        # Correlation Analysis Settings
+        correlation = self.create_correlation_settings_section()
+        right_box.add(correlation)
 
         # Plate Grouping
         grouping = self.create_plate_grouping_section()
         right_box.add(grouping)
-        self.container = container
 
-        return container
+        # Run Analysis button
+        run_btn = toga.Button(
+            'Run Analysis',
+            on_press=self.on_run_analysis,
+            style=Pack(margin=10, font_weight='bold', flex=1, font_size=12)
+        )
+
+        outer = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        outer.add(split)
+        outer.add(run_btn)
+
+        self.container = outer
+        return outer
 
     def create_configuration_section(self):
         """Create calibrant input, dilution factor, and LOD/LOQ mode."""
@@ -283,41 +296,35 @@ class AnalysisView:
         trend_group_box.add(trend_group_label, self.trend_grouping_var)
         config_box.add(trend_group_box)
 
-        # Correlation Analysis Settings (optional - for TNM/UICC staging correlation)
-        config_box.add(toga.Divider())
-        clinical_header = toga.Label(
-            'Correlation Analysis:',
-            style=Pack(margin=5, font_weight='bold')
-        )
-        config_box.add(clinical_header)
+        return config_box
 
-        # Clinical data column multi-select (for TNM, UICC, staging, etc.)
-        clinical_col_label = toga.Label(
-            'Clinical Data Columns:',
-            style=Pack(margin=5)
-        )
-        config_box.add(clinical_col_label)
+    def create_correlation_settings_section(self):
+        """Correlation Analysis Settings"""
+        box = toga.Box(style=Pack(direction=COLUMN, margin=5))
 
-        self.clinical_column_switches = {}
-        self.clinical_columns_container = toga.Box(
-            style=Pack(direction=COLUMN, margin=(0, 5, 5, 20))
-        )
-        config_box.add(self.clinical_columns_container)
+        box.add(toga.Label('', style=Pack(margin=5, font_weight='bold', font_size=14)))
+        box.add(toga.Divider())
+        box.add(toga.Label('Correlation Analysis Settings:', style=Pack(margin=5, font_weight='bold')))
+        box.add(toga.Label('Data Columns:', style=Pack(margin=5)))
 
-        # TNM biomarker selector
-        tnm_bio_box = toga.Box(style=Pack(direction=ROW, margin=5))
-        tnm_bio_label = toga.Label(
-            'Biomarker Column:',
-            style=Pack(margin=5, width=150)
+        self.correlation_column_switches = {}
+        self.correlation_columns_container = toga.Box(style=Pack(direction=COLUMN, margin=(0, 5, 5, 5)))
+        correlation_scroll = toga.ScrollContainer(
+            content=self.correlation_columns_container,
+            style=Pack(height=130, margin=(0, 5, 5, 5))
         )
-        self.tnm_biomarker_var = toga.Selection(
+        box.add(correlation_scroll)
+
+        correlation_value_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        correlation_value_box.add(toga.Label('Value Column:', style=Pack(margin=5, width=150)))
+        self.correlation_value_var = toga.Selection(
             items=['None', 'concentration', 'concentration_dilution_corrected'],
             style=Pack(flex=1, margin=5)
         )
-        tnm_bio_box.add(tnm_bio_label, self.tnm_biomarker_var)
-        config_box.add(tnm_bio_box)
+        correlation_value_box.add(self.correlation_value_var)
+        box.add(correlation_value_box)
 
-        return config_box
+        return box
 
     def create_plate_grouping_section(self):
         """Create plate grouping panel for organizing plates into groups."""
@@ -399,7 +406,7 @@ class AnalysisView:
         if getattr(self.app, "connected_df", None) is None:
             return
 
-        df_headers = list(self.app.connected_df.columns.values)
+        df_headers = [col for col in self.app.connected_df.columns if col not in HIDDEN_COLUMNS]
 
         # Add known analysis result columns
         analysis_columns = ['concentration_dilution_corrected', 'concentration', 'detection_status']
@@ -447,25 +454,30 @@ class AnalysisView:
             self.trend_grouping_var.items = ['None'] + display_items
 
         # Update clinical column switches (multi-select)
-        if hasattr(self, 'clinical_columns_container') and self.clinical_columns_container:
-            self.clinical_columns_container.clear()
-            self.clinical_column_switches = {}
+        if hasattr(self, 'correlation_columns_container') and self.correlation_columns_container:
+            self.correlation_columns_container.clear()
+            self.correlation_column_switches = {}
 
             clinical_hints = ['tnm', 'uicc', 'grade', 'stage', 'figo']
-            for display_name in display_items:
+            current_row = None
+            for idx, display_name in enumerate(display_items):
                 actual_name = self.column_name_mapping.get(display_name, display_name)
-                switch = toga.Switch(display_name, style=Pack(margin=2))
+                switch = toga.Switch(display_name, style=Pack(flex=1, margin=2))
                 # Auto-toggle columns that look clinical
                 if any(hint in actual_name.lower() for hint in clinical_hints):
                     switch.value = True
-                self.clinical_column_switches[display_name] = switch
-                self.clinical_columns_container.add(switch)
+                self.correlation_column_switches[display_name] = switch
+                # Place 2 switches per row
+                if idx % 2 == 0:
+                    current_row = toga.Box(style=Pack(direction=ROW, margin=1))
+                    self.correlation_columns_container.add(current_row)
+                current_row.add(switch)
 
-        if hasattr(self, 'tnm_biomarker_var') and self.tnm_biomarker_var:
-            self.tnm_biomarker_var.items = ['None'] + display_items
+        if hasattr(self, 'correlation_value_var') and self.correlation_value_var:
+            self.correlation_value_var.items = ['None'] + display_items
             con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
             if con_display in display_items:
-                self.tnm_biomarker_var.value = con_display
+                self.correlation_value_var.value = con_display
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -481,7 +493,7 @@ class AnalysisView:
             row = self.create_calibrant_row(order, initial_value=val)
             self.calibrant_container.add(row)
 
-    # ==================== PLATE GROUPING METHODS ====================
+    # PLATE GROUPING METHODS
 
     def refresh_plate_checkboxes(self):
         """Rebuild available plates list (only unassigned plates)."""
@@ -662,18 +674,6 @@ class AnalysisView:
         return row
 
 
-    def create_action_buttons(self):
-        """Create Run Analysis, Clear, Export buttons."""
-        btn_box = toga.Box(style=Pack(direction=ROW, margin=10))
-
-        run_btn = toga.Button(
-            'Run Analysis',
-            on_press=self.on_run_analysis,
-            style=Pack(margin=5, flex=1)
-        )
-
-        btn_box.add(run_btn)
-        return btn_box
 
     async def on_run_analysis(self, widget=None):
         """Trigger analysis workflow."""
@@ -751,13 +751,13 @@ class AnalysisView:
 
         # Get clinical column selections - collect all toggled switches
         tnm_columns = []
-        if hasattr(self, 'clinical_column_switches'):
-            for display_name, switch in self.clinical_column_switches.items():
+        if hasattr(self, 'correlation_column_switches'):
+            for display_name, switch in self.correlation_column_switches.items():
                 if switch.value:
                     actual = mapping.get(display_name, display_name)
                     tnm_columns.append(actual)
 
-        tnm_biomarker_display = self.tnm_biomarker_var.value if hasattr(self, 'tnm_biomarker_var') else 'None'
+        tnm_biomarker_display = self.correlation_value_var.value if hasattr(self, 'correlation_value_var') else 'None'
         tnm_biomarker = mapping.get(tnm_biomarker_display, 'concentration_dilution_corrected') if tnm_biomarker_display != 'None' else 'None'
 
         # Update app config
