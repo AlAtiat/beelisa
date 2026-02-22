@@ -158,7 +158,7 @@ class DataView:
 
                 switch = toga.Switch(
                     str(plate_name),
-                    style=Pack(padding_bottom=5)
+                    style=Pack(margin_bottom=5)
                 )
 
                 self.plate_checkboxes[plate_name] = switch

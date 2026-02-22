@@ -1,5 +1,8 @@
 # BeELISA Release Notes
 
-## 0.0.1 (19 Dec 2025)
+## 1.0.0 (22 Feb 2026)
 
-* Initial release
+### Release
+- First stable release of BeELISA
+- Packaged and deployed for Windows (MSI installer)
+- Feature set finalized for Bachelor thesis submission

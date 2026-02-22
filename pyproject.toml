@@ -1,9 +1,9 @@
 # This project was generated with 0.3.26 using template: https://github.com/beeware/briefcase-template @ v0.3.26
 [tool.briefcase]
 project_name = "BeELISA"
-bundle = "org.beeilsa"
-version = "0.0.1"
-url = "https://beeilsa.org/beelisa"
+bundle = "org.beelisa"
+version = "1.0.0"
+url = "https://beelisa.org/beelisa"
 license.file = "LICENSE"
 author = "Aun Al Atiat"
 author_email = "aun@alatiat.com"
@@ -17,7 +17,7 @@ evaluation of enzyme-linked immunosorbent assay (ELISA) data in biomedical resea
 The application was developed as part of the Bachelor thesis entitled
 Statistical Evaluation of Glycoprotein Biomarkers in Pancreatic Ductal Adenocarcinoma Using an analysis application for ELISA Data Processing and Biomarker Pattern Recognition 
 at Brandenburg University of Technology Cottbus-Senftenberg.
-icon = "src/beelisa/resources/icons/beeilsa"
+icon = "src/beelisa/resources/icons/beelisa"
 """
 sources = [
     "src/beelisa",
