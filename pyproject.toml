@@ -17,8 +17,9 @@ evaluation of enzyme-linked immunosorbent assay (ELISA) data in biomedical resea
 The application was developed as part of the Bachelor thesis entitled
 Statistical Evaluation of Glycoprotein Biomarkers in Pancreatic Ductal Adenocarcinoma Using an analysis application for ELISA Data Processing and Biomarker Pattern Recognition 
 at Brandenburg University of Technology Cottbus-Senftenberg.
-icon = "src/beelisa/resources/icons/beelisa"
 """
+icon = "src/beelisa/resources/icons/beelisa"
+
 sources = [
     "src/beelisa",
 ]
@@ -27,20 +28,20 @@ test_sources = [
 ]
 
 requires = [
-    "pandas",
-    "openpyxl",
-    "numpy",
-    "scipy",
-    "matplotlib>=3.5.0",
-    "scikit-learn>=1.0.0",
-    "seaborn", 
+    "pandas>=2.2,<2.4",
+    "openpyxl>=3.1,<4.0",
+    "numpy>=1.26,<2.0",
+    "scipy==1.13.1",
+    "matplotlib>=3.8,<3.11",
+    "scikit-learn>=1.4,<1.6",
+    "seaborn==0.13.2",
 ]
 test_requires = [
     "pytest",
 ]
 
 [tool.briefcase.app.beelisa.macOS]
-universal_build = true
+universal_build = false
 requires = [
     "toga-cocoa~=0.5.0",
     "std-nslog~=1.0.3",
