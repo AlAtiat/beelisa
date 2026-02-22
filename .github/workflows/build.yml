@@ -48,7 +48,7 @@ jobs:
             libgtk-3-dev gir1.2-gtk-3.0
 
       - name: Create
-        run: briefcase create -r
+        run: briefcase create
 
       - name: Build
         run: briefcase build
