@@ -424,9 +424,9 @@ class AnalysisView:
         # Update heatmap variable selectors with display names
         if hasattr(self, 'heatmap_color_var') and self.heatmap_color_var:
             self.heatmap_color_var.items = display_items
-            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
-            # if con_display in display_items:
-            #     self.heatmap_color_var.value = con_display
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            if con_display in display_items:
+                self.heatmap_color_var.value = con_display
 
         if hasattr(self, 'heatmap_size_var') and self.heatmap_size_var:
             self.heatmap_size_var.items = ['None'] + display_items
