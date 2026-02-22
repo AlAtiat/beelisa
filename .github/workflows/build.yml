@@ -1,0 +1,51 @@
+name: Build BeELISA installers
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Briefcase
+        run: |
+          python -m pip install -U pip
+          python -m pip install -U briefcase
+
+      # Linux extra system libs
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgirepository1.0-dev libcairo2-dev libpango1.0-dev \
+            libgtk-3-dev gir1.2-gtk-3.0
+
+      - name: Create
+        run: briefcase create
+
+      - name: Build
+        run: briefcase build
+
+      - name: Package
+        run: briefcase package --adhoc-sign
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: beelisa-${{ runner.os }}
+          path: dist/**
