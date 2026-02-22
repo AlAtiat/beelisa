@@ -1,9 +1,10 @@
 BeELISA
 =======
-.. image:: src/beelisa/resources/beelisa.png
-   :width: 300px
-   :align: center
-   :alt: BeELISA Logo
+.. raw:: html
+
+   <div align="center">
+       <img src="src/beelisa/resources/beelisa.png" width="220">
+   </div>
 
 Version 1.0.0 | Author: Aun Al Atiat | License: GNU GPLv3
 
