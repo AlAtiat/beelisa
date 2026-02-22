@@ -32,6 +32,7 @@ class BeELISA(toga.App):
             'lod_loq_mode': 'per_plate',
         }
         self.analysis_results = None
+        self._data_dirty = False  # True when connected_df needs recomputing
 
         # Placeholders filled by on_running()
         self.view = None
@@ -146,6 +147,7 @@ class BeELISA(toga.App):
         self.content_tabs.content.append('DATA VIEW', self.create_data_view())
         self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
         self.content_tabs.content.append('RESULTS', self.create_results_view())
+        self.content_tabs.on_select = self._on_tab_select
 
         main_box.add(self.content_tabs)
 
@@ -172,16 +174,19 @@ class BeELISA(toga.App):
             'raw_filename': raw_filename,
             'plate_id_filename': plate_id_filename,
         })
+        self._data_dirty = True
 
     def remove_plate(self, index):
         """Remove plate at index."""
         if 0 <= index < len(self.plates):
             del self.plates[index]
+            self._data_dirty = True
 
     def update_plate_name(self, index, new_name):
         """Update plate name."""
         if 0 <= index < len(self.plates):
             self.plates[index]['name'] = new_name
+            self._data_dirty = True
 
     # View creation methods
     def create_elisa_view(self):
@@ -235,6 +240,18 @@ class BeELISA(toga.App):
         finally:
             if self.loading is not None:
                 self.loading.stop()
+            self._data_dirty = False
+
+    def _on_tab_select(self, widget):
+        """Auto-refresh data-dependent tabs when data has changed."""
+        if not self._data_dirty:
+            return
+        try:
+            tab_text = widget.current_tab.text
+        except Exception:
+            return
+        if tab_text in ('DATA VIEW', 'ANALYSIS'):
+            self.refresh_data()
 
     async def save_session(self, widget=None):
         """Export all current app state to a .beelisa session file."""

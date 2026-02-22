@@ -588,7 +588,7 @@ class AnalysisView:
 
         if len(group_name) > 50:
             await self.app.main_window.dialog(
-                toga.ErrorDialog('Invalid Name', 'Group name must be 50 characters or less.')
+                toga.ErrorDialog('Invalid Name', 'Group name must be less than 50 characters')
             )
             return
 
@@ -652,7 +652,7 @@ class AnalysisView:
             self.refresh_plate_checkboxes()
             self.refresh_groups_display()
 
-    # ==================== END PLATE GROUPING METHODS ====================
+    # END PLATE GROUPING METHODS
 
     def create_calibrant_row(self, order, initial_value=""):
         """Create a single calibrant input row."""

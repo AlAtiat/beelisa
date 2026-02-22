@@ -328,6 +328,7 @@ class PlateModel:
                     "is_replicate": rep_round > 0
                 })
         self.app.plate_design_df = pd.DataFrame(result)
+        self.app._data_dirty = True
 
         return result
                         

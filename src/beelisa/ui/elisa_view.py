@@ -17,6 +17,8 @@ class Mainboard:
         self.plate_widget = None
         self.pending_raw_data = None
         self.pending_raw_filename = None
+        self.pending_id_data = None
+        self.pending_id_filename = None
         self.pending_plate_id_filename = None
         self.plates_container = None
         self.sample_id_md = None
@@ -247,8 +249,13 @@ class Mainboard:
                     self.pending_raw_data = parsed_data
                     self.pending_raw_filename = Path(file_path).name
                     self.raw_status.text = f"Pending: {Path(file_path).name}"
-                    await self.app.main_window.dialog(toga.InfoDialog('Success',
-                        "Raw data loaded. Now load the corresponding Plate ID file."))
+
+                    if self.pending_id_data is not None:
+                        # Plate ID loaded first
+                        await self._create_plate_pair()
+                    else:
+                        await self.app.main_window.dialog(toga.InfoDialog('Success',
+                            "Raw data loaded. Now load the corresponding Plate ID file."))
                 else:
                     await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
 
@@ -266,48 +273,49 @@ class Mainboard:
             )
 
             if file_path:
-                # Check if raw data is pending
-                if self.pending_raw_data is None:
-                    await self.app.main_window.dialog(toga.ErrorDialog('Error',
-                        "Please load raw data first"))
-                    return
-
                 from ..data.loader import DataLoader
 
                 loader = DataLoader(self.app)
                 success, message, plate_id_df = loader.load_plate_id(file_path)
 
                 if success:
-                    # Store plate ID filename
-                    self.pending_plate_id_filename = Path(file_path).name
+                    self.pending_id_data = plate_id_df
+                    self.pending_id_filename = Path(file_path).name
+                    self.plate_id_status.text = f"Pending: {Path(file_path).name}"
 
-                    # Create plate pair
-                    plate_name = self.pending_raw_filename or f"Plate_{len(self.app.plates)+1}"
-                    self.app.add_plate(
-                        plate_name,
-                        self.pending_raw_data,
-                        plate_id_df,
-                        raw_filename=self.pending_raw_filename,
-                        plate_id_filename=self.pending_plate_id_filename
-                    )
-
-                    # Clear pending data
-                    self.pending_raw_data = None
-                    self.pending_raw_filename = None
-                    self.pending_plate_id_filename = None
-
-                    # Update UI
-                    self.raw_status.text = "No raw data loaded"
-                    self.plate_id_status.text = "No Plate Sample ID loaded"
-                    self.refresh_plates_list()
-
-                    await self.app.main_window.dialog(toga.InfoDialog('Success',
-                        f"Plate pair added: {plate_name}\nTotal plates: {len(self.app.plates)}"))
+                    if self.pending_raw_data is not None:
+                        # Raw loaded first
+                        await self._create_plate_pair()
+                    else:
+                        await self.app.main_window.dialog(toga.InfoDialog('Success',
+                            "Plate ID loaded. Now load the corresponding Raw ELISA data file."))
                 else:
                     await self.app.main_window.dialog(toga.ErrorDialog('Error', message))
 
         except Exception as e:
             await self.app.main_window.dialog(toga.ErrorDialog('Error', str(e)))
+
+    async def _create_plate_pair(self):
+        """Create a plate entry from pending raw + ID data and clear all pending state."""
+        plate_name = self.pending_raw_filename or f"Plate_{len(self.app.plates)+1}"
+        self.app.add_plate(
+            plate_name,
+            self.pending_raw_data,
+            self.pending_id_data,
+            raw_filename=self.pending_raw_filename,
+            plate_id_filename=self.pending_id_filename,
+        )
+        # Clear all pending state
+        self.pending_raw_data = None
+        self.pending_raw_filename = None
+        self.pending_id_data = None
+        self.pending_id_filename = None
+        # Update UI
+        self.raw_status.text = "No raw data loaded"
+        self.plate_id_status.text = "No Plate Sample ID loaded"
+        self.refresh_plates_list()
+        await self.app.main_window.dialog(toga.InfoDialog('Success',
+            f"Plate pair added: {plate_name}\nTotal plates: {len(self.app.plates)}"))
 
     async def load_metadata(self, widget):
         """Load patient metadata file."""
