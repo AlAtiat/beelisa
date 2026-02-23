@@ -148,20 +148,19 @@ system_runtime_requires = [
 manylinux = "manylinux_2_28"
 
 system_requires = [
-    # Build dependencies for pycairo
-    "libcairo2-dev",
+    # Needed for PyGObject build (girepository-2.0 + GI)
+    "glib2-devel",
+    "gobject-introspection-devel",
 
-    # Build dependencies for PyGObject (provides girepository-2.0 / GI)
-    "libgirepository1.0-dev",
-    "gobject-introspection",
+    # Needed for pycairo build
+    "cairo-gobject-devel",
 
-    # GTK headers (often required)
-    "libgtk-3-dev",
+    # Needed for GTK3
+    "gtk3-devel",
 
-    # GI typelibs + common GTK runtime libs that linuxdeploy will pick up
-    "gir1.2-gtk-3.0",
-    "libcanberra-gtk3-module",
-    "gvfs",
+    # Common GTK runtime deps linuxdeploy may bundle
+    "libcanberra-gtk3",
+    "gvfs-client",
 ]
 
 linuxdeploy_plugins = [
