@@ -169,8 +169,13 @@ class BeELISA(toga.App):
             style=Pack(direction=COLUMN, flex=1),
         )
 
-        # show the UI
+        # Phase 3: attach to window first, THEN assign ScrollContainer contents
         self.main_window.content = main_box
+
+        self.view.apply_scroll_contents()
+        self.data_view.apply_scroll_contents()
+        self.analysis_view.apply_scroll_contents()
+        self.results_view.apply_scroll_contents()
 
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):

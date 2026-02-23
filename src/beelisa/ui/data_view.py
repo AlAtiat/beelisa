@@ -13,7 +13,7 @@ class DataView:
         
     def create_layout(self):
         """Create data view layout"""
-        # Build all sub-sections before wrapping in ScrollContainer
+        # Phase 2: build all content; ScrollContainer created without content
         controls = self.create_controls()
         filters = self.create_filter_section()
 
@@ -29,12 +29,17 @@ class DataView:
 
         summary = self.create_summary()
 
-        box = toga.Box(
+        self._scroll_box = toga.Box(
             children=[controls, filters, self.table_holder, summary],
             style=Pack(direction=COLUMN, margin=10, flex=1),
         )
-        self.container = toga.ScrollContainer(content=box, style=Pack(flex=1))
+        # No content= here — assigned in apply_scroll_contents() after window attachment
+        self.container = toga.ScrollContainer(style=Pack(flex=1))
         return self.container
+
+    def apply_scroll_contents(self):
+        """Phase 3: assign ScrollContainer content after window attachment."""
+        self.container.content = self._scroll_box
     
     def create_controls(self):
         """Create control buttons"""

@@ -25,26 +25,32 @@ class Mainboard:
         
     def create_layout(self):
         """Create ELISA analysis view layout."""
-        # Build sections before wrapping in ScrollContainers
+        # Phase 2: build all content; ScrollContainers created without content
         plate_section = self.create_plate_section()
         load_section = self.create_load_section()
 
-        left_box = toga.Box(
+        self._left_box = toga.Box(
             children=[plate_section],
             style=Pack(direction=COLUMN, flex=1),
         )
-        right_box = toga.Box(
+        self._right_box = toga.Box(
             children=[load_section],
             style=Pack(direction=COLUMN, flex=1),
         )
-        left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
-        right_container = toga.ScrollContainer(content=right_box, style=Pack(flex=1))
+        # No content= here — assigned in apply_scroll_contents() after window attachment
+        self._left_container  = toga.ScrollContainer(style=Pack(flex=1))
+        self._right_container = toga.ScrollContainer(style=Pack(flex=1))
         container = toga.SplitContainer(
-            content=[left_container, right_container],
+            content=[self._left_container, self._right_container],
             style=Pack(flex=1, margin=10),
         )
         self.app.log("Loaded Main View")
         return container
+
+    def apply_scroll_contents(self):
+        """Phase 3: assign ScrollContainer content after window attachment."""
+        self._left_container.content  = self._left_box
+        self._right_container.content = self._right_box
 
     def create_plate_section(self):
         """Create plate configuration section."""

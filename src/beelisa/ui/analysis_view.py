@@ -37,23 +37,24 @@ class AnalysisView:
 
     def create_layout(self):
         """Create analysis view layout."""
-        # Build all sections before wrapping in ScrollContainers
+        # Phase 2: build all content; ScrollContainers created without content
         config = self.create_configuration_section()
         correlation = self.create_correlation_settings_section()
         grouping = self.create_plate_grouping_section()
 
-        left_box = toga.Box(
+        self._left_box = toga.Box(
             children=[config],
             style=Pack(direction=COLUMN, flex=1),
         )
-        right_box = toga.Box(
+        self._right_box = toga.Box(
             children=[correlation, grouping],
             style=Pack(direction=COLUMN, flex=1),
         )
-        left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
-        right_container = toga.ScrollContainer(content=right_box, style=Pack(flex=1))
+        # No content= here — assigned in apply_scroll_contents() after window attachment
+        self._left_container  = toga.ScrollContainer(style=Pack(flex=1))
+        self._right_container = toga.ScrollContainer(style=Pack(flex=1))
         split = toga.SplitContainer(
-            content=[left_container, right_container],
+            content=[self._left_container, self._right_container],
             style=Pack(direction=COLUMN, flex=1, margin=10),
         )
 
@@ -69,6 +70,11 @@ class AnalysisView:
         )
         self.container = outer
         return outer
+
+    def apply_scroll_contents(self):
+        """Phase 3: assign ScrollContainer content after window attachment."""
+        self._left_container.content  = self._left_box
+        self._right_container.content = self._right_box
 
     def create_configuration_section(self):
         """Create calibrant input, dilution factor, and LOD/LOQ mode."""

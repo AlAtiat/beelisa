@@ -28,19 +28,26 @@ class ResultsView:
 
     def create_layout(self):
         """Create result view layout """
-        # Build content before wrapping in ScrollContainers
+        # Phase 2: build all content; ScrollContainers created without content
         results = self.create_results_section()
-        results_box = toga.Box(
+        self._results_box = toga.Box(
             children=[results],
             style=Pack(direction=COLUMN, flex=1),
         )
-        results_scroll = toga.ScrollContainer(content=results_box, style=Pack(flex=1))
-        box = toga.Box(
-            children=[results_scroll],
+        # No content= here — assigned in apply_scroll_contents() after window attachment
+        self._results_scroll = toga.ScrollContainer(style=Pack(flex=1))
+        self._outer_box = toga.Box(
+            children=[self._results_scroll],
             style=Pack(direction=COLUMN, flex=1, margin=10),
         )
-        container = toga.ScrollContainer(content=box, style=Pack(flex=1))
-        return container
+        self._outer_container = toga.ScrollContainer(style=Pack(flex=1))
+        return self._outer_container
+
+    def apply_scroll_contents(self):
+        """Phase 3: assign ScrollContainer content after window attachment (innermost first)."""
+        self._plots_container.content = self._plots_box
+        self._results_scroll.content  = self._results_box
+        self._outer_container.content = self._outer_box
 
 
     def create_results_section(self):
@@ -161,16 +168,17 @@ class ResultsView:
         # ImageView for displaying plots
         self.plot_imageview = toga.ImageView(style=Pack(flex=1, margin=5))
 
-        plots_box = toga.Box(
+        self._plots_box = toga.Box(
             children=[plot_buttons_box, nav_outer, nav_under, self.plot_imageview],
             style=Pack(direction=COLUMN, flex=1),
         )
-        plots_container = toga.ScrollContainer(content=plots_box, style=Pack(flex=1))
+        # No content= here — assigned in apply_scroll_contents() after window attachment
+        self._plots_container = toga.ScrollContainer(style=Pack(flex=1))
 
         self.results_tabs.content.append('Results Table', results_table_box)
         self.results_tabs.content.append('QC Summary', qc_box)
         self.results_tabs.content.append('Model Comparison', model_comp_box)
-        self.results_tabs.content.append('Plots', plots_container)
+        self.results_tabs.content.append('Plots', self._plots_container)
 
         # Export section
         export_box = toga.Box(style=Pack(direction=ROW, margin=5))
