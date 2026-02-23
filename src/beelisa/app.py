@@ -80,6 +80,14 @@ class BeELISA(toga.App):
         )
         self.commands.add(log_cmd, refresh_cmd, save_cmd, load_cmd)
 
+
+        # Set app icon 
+        try:
+            self.icon = toga.Icon(str(self.paths.app / 'resources' / 'icons' / 'beelisa'))
+        except Exception:
+            pass
+
+
         # start window
         self.main_window = toga.MainWindow(title=self.formal_name)
         self.main_window.content = self._build_loading_window()
