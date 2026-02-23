@@ -47,7 +47,7 @@ class DataViewer:
         data_table_df = getattr(self.app, "connected_df", None)
         data_view = getattr(self.app, "data_view", None)
         if data_table_df is None or data_table_df.empty:
-            self.app.log("No data available for DataView")
+            self.app.log("Please Import Data")
             self.app.loading.stop()
 
             return

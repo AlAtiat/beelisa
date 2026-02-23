@@ -148,8 +148,7 @@ class BeELISA(toga.App):
         self.analysis_view = AnalysisView(self)
         self.results_view = ResultsView(self)
 
-        # Build the UI
-        main_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        # Build all children before assembling the main box
         self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
         self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
         self.content_tabs.content.append('DATA VIEW', self.create_data_view())
@@ -157,17 +156,18 @@ class BeELISA(toga.App):
         self.content_tabs.content.append('RESULTS', self.create_results_view())
         self.content_tabs.on_select = self._on_tab_select
 
-        main_box.add(self.content_tabs)
-
         self.loading = toga.ActivityIndicator(style=Pack(width=10, height=10))
         loading_box = toga.Box(
             children=[self.loading],
             style=Pack(align_items='center', justify_content='center'),
         )
-        main_box.add(loading_box)
-
         self.status_label = toga.Label('Ready', style=Pack(margin=2))
-        main_box.add(self.status_label)
+
+        # Assemble main_box with all children ready
+        main_box = toga.Box(
+            children=[self.content_tabs, loading_box, self.status_label],
+            style=Pack(direction=COLUMN, flex=1),
+        )
 
         # show the UI
         self.main_window.content = main_box

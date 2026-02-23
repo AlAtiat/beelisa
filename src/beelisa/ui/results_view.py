@@ -28,19 +28,18 @@ class ResultsView:
 
     def create_layout(self):
         """Create result view layout """
-
-        # Main container
-        box = toga.Box(style=Pack(direction=COLUMN, flex=1, margin=10))
-        container = toga.ScrollContainer(content=box, style=Pack(flex=1))
-
-        # Results section (bottom)
-        results_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
+        # Build content before wrapping in ScrollContainers
         results = self.create_results_section()
-        results_box.add(results)
+        results_box = toga.Box(
+            children=[results],
+            style=Pack(direction=COLUMN, flex=1),
+        )
         results_scroll = toga.ScrollContainer(content=results_box, style=Pack(flex=1))
-
-        box.add(results_scroll)
-
+        box = toga.Box(
+            children=[results_scroll],
+            style=Pack(direction=COLUMN, flex=1, margin=10),
+        )
+        container = toga.ScrollContainer(content=box, style=Pack(flex=1))
         return container
 
 
@@ -83,68 +82,50 @@ class ResultsView:
         )
         model_comp_box.add(self.model_comparison)
 
-        # Plots tab
-        plots_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        plots_container = toga.ScrollContainer(content=plots_box, flex=1)
-
-        # Plot navigation buttons
-        plot_buttons_box = toga.Box(style=Pack(direction=ROW, margin=5))
-
-
-
-
+        # Plots tab — build all children before wrapping in ScrollContainer
         self.plot_std_curve_btn = toga.Button(
             'Standard Curve',
             on_press=self.on_show_standard_curve,
             style=Pack(margin=2, flex=1)
         )
-
         self.plot_heatmap_btn = toga.Button(
             'Plate Heatmap',
             on_press=self.on_show_heatmap,
             style=Pack(margin=2, flex=1)
         )
-        
         self.plot_pca_btn = toga.Button(
             'PCA Analysis',
             on_press=self.on_show_pca,
             style=Pack(margin=2, flex=1)
         )
-
         self.plot_trend_btn = toga.Button(
             'Trend Analysis',
             on_press=self.on_show_trend,
             style=Pack(margin=2, flex=1)
         )
-
         self.plot_correlation_btn = toga.Button(
             'Correlation Heatmap',
             on_press=self.on_show_correlation_heatmap,
             style=Pack(margin=2, flex=1)
         )
-
         self.plot_violin_btn = toga.Button(
             'Violin Plot',
             on_press=self.on_show_violin,
             style=Pack(margin=2, flex=1)
         )
-
-        plot_buttons_box.add(
-            self.plot_std_curve_btn,
-            self.plot_heatmap_btn,
-            self.plot_pca_btn,
-            self.plot_trend_btn,
-            self.plot_correlation_btn,
-            self.plot_violin_btn
+        plot_buttons_box = toga.Box(
+            children=[
+                self.plot_std_curve_btn,
+                self.plot_heatmap_btn,
+                self.plot_pca_btn,
+                self.plot_trend_btn,
+                self.plot_correlation_btn,
+                self.plot_violin_btn,
+            ],
+            style=Pack(direction=ROW, margin=5),
         )
 
-        plots_box.add(plot_buttons_box)
-
-
         # Navigation arrows (for plot types with multiple images)
-        nav_box = toga.Box(style=Pack(direction=ROW))
-        nav_label_box = toga.Box(style=Pack(direction=ROW))
-
         self.prev_plot_btn = toga.Button(
             '◀',
             on_press=self.on_prev_plot,
@@ -155,35 +136,36 @@ class ResultsView:
             on_press=self.on_next_plot,
             style=Pack(margin=2, width=50)
         )
-
         self.plot_nav_label = toga.Label(
             'No plot selected',
             style=Pack(margin=5)
         )
 
-        nav_box.add(self.prev_plot_btn, self.next_plot_btn)
-        nav_label_box.add(self.plot_nav_label)
-
-        nav_outer = toga.Box(style=Pack(direction=ROW, margin=5))
-        nav_outer.add(
-            toga.Box(style=Pack(flex=1)),
-            nav_box,
-            toga.Box(style=Pack(flex=1)),
+        nav_box = toga.Box(
+            children=[self.prev_plot_btn, self.next_plot_btn],
+            style=Pack(direction=ROW),
         )
-        nav_under = toga.Box(style=Pack(direction=ROW, margin=5))
-        nav_under.add(
-            toga.Box(style=Pack(flex=1)),
-            nav_label_box,
-            toga.Box(style=Pack(flex=1)),
+        nav_label_box = toga.Box(
+            children=[self.plot_nav_label],
+            style=Pack(direction=ROW),
         )
-
-
-        plots_box.add(nav_outer)
-        plots_box.add(nav_under)
+        nav_outer = toga.Box(
+            children=[toga.Box(style=Pack(flex=1)), nav_box, toga.Box(style=Pack(flex=1))],
+            style=Pack(direction=ROW, margin=5),
+        )
+        nav_under = toga.Box(
+            children=[toga.Box(style=Pack(flex=1)), nav_label_box, toga.Box(style=Pack(flex=1))],
+            style=Pack(direction=ROW, margin=5),
+        )
 
         # ImageView for displaying plots
         self.plot_imageview = toga.ImageView(style=Pack(flex=1, margin=5))
-        plots_box.add(self.plot_imageview)
+
+        plots_box = toga.Box(
+            children=[plot_buttons_box, nav_outer, nav_under, self.plot_imageview],
+            style=Pack(direction=COLUMN, flex=1),
+        )
+        plots_container = toga.ScrollContainer(content=plots_box, style=Pack(flex=1))
 
         self.results_tabs.content.append('Results Table', results_table_box)
         self.results_tabs.content.append('QC Summary', qc_box)

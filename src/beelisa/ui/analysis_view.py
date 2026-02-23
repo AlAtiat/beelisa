@@ -37,36 +37,36 @@ class AnalysisView:
 
     def create_layout(self):
         """Create analysis view layout."""
-        
-        left_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
-        right_box = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        right_container = toga.ScrollContainer(content=right_box, flex=1)
-        split = toga.SplitContainer(content=[left_container, right_container], style=Pack(direction=COLUMN, flex=1, margin=10))
-
-        # Configuration section
+        # Build all sections before wrapping in ScrollContainers
         config = self.create_configuration_section()
-        left_box.add(config)
-
-        # Correlation Analysis Settings
         correlation = self.create_correlation_settings_section()
-        right_box.add(correlation)
-
-        # Plate Grouping
         grouping = self.create_plate_grouping_section()
-        right_box.add(grouping)
 
-        # Run Analysis button
+        left_box = toga.Box(
+            children=[config],
+            style=Pack(direction=COLUMN, flex=1),
+        )
+        right_box = toga.Box(
+            children=[correlation, grouping],
+            style=Pack(direction=COLUMN, flex=1),
+        )
+        left_container = toga.ScrollContainer(content=left_box, style=Pack(flex=1))
+        right_container = toga.ScrollContainer(content=right_box, style=Pack(flex=1))
+        split = toga.SplitContainer(
+            content=[left_container, right_container],
+            style=Pack(direction=COLUMN, flex=1, margin=10),
+        )
+
         run_btn = toga.Button(
             'Run Analysis',
             on_press=self.on_run_analysis,
-            style=Pack(margin=10, font_weight='bold', flex=1, font_size=12)
+            style=Pack(margin=10, font_weight='bold', flex=1, font_size=12),
         )
 
-        outer = toga.Box(style=Pack(direction=COLUMN, flex=1))
-        outer.add(split)
-        outer.add(run_btn)
-
+        outer = toga.Box(
+            children=[split, run_btn],
+            style=Pack(direction=COLUMN, flex=1),
+        )
         self.container = outer
         return outer
 

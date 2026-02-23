@@ -13,36 +13,28 @@ class DataView:
         
     def create_layout(self):
         """Create data view layout"""
-        box = toga.Box(style=Pack(direction=COLUMN, margin=10, flex=1))
-        container = toga.ScrollContainer(content=box,  style=Pack(flex=1))
-        # Controls section
+        # Build all sub-sections before wrapping in ScrollContainer
         controls = self.create_controls()
-        box.add(controls)
-
-        # Filter section
         filters = self.create_filter_section()
-        box.add(filters)
 
-        # Data table
-        self.table_holder = toga.Box(style=Pack(direction=COLUMN, flex=1, margin_top=10))
-        box.add(self.table_holder)
-
-        # initial empty table (placeholder headings)
         self.data_table = toga.Table(
             headings=["Please load Data first"],
             data=[],
-            style=Pack(flex=1, margin=5)
+            style=Pack(flex=1, margin=5),
         )
-        self.table_holder.add(self.data_table)
-        
-    
-        
-        # Summary section
+        self.table_holder = toga.Box(
+            children=[self.data_table],
+            style=Pack(direction=COLUMN, flex=1, margin_top=10),
+        )
+
         summary = self.create_summary()
-        box.add(summary)
-        self.container = container
-        
-        return container
+
+        box = toga.Box(
+            children=[controls, filters, self.table_holder, summary],
+            style=Pack(direction=COLUMN, margin=10, flex=1),
+        )
+        self.container = toga.ScrollContainer(content=box, style=Pack(flex=1))
+        return self.container
     
     def create_controls(self):
         """Create control buttons"""
