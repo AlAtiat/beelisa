@@ -148,14 +148,6 @@ class BeELISA(toga.App):
         self.analysis_view = AnalysisView(self)
         self.results_view = ResultsView(self)
 
-        # Build all children before assembling the main box
-        self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
-        self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
-        self.content_tabs.content.append('DATA VIEW', self.create_data_view())
-        self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
-        self.content_tabs.content.append('RESULTS', self.create_results_view())
-        self.content_tabs.on_select = self._on_tab_select
-
         self.loading = toga.ActivityIndicator(style=Pack(width=10, height=10))
         loading_box = toga.Box(
             children=[self.loading],
@@ -163,17 +155,25 @@ class BeELISA(toga.App):
         )
         self.status_label = toga.Label('Ready', style=Pack(margin=2))
 
-        # Assemble main_box with all children ready
+        # Phase 3a: attach OptionContainer with NO tabs so Cocoa's
+        # tabView_didSelectTabViewItem_ has nothing to cascade into.
+        self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
         main_box = toga.Box(
             children=[self.content_tabs, loading_box, self.status_label],
             style=Pack(direction=COLUMN, flex=1),
         )
+        self.main_window.content = main_box   # no tabs → delegate is a no-op
+        await asyncio.sleep(0)                # window refs now propagated
 
-        # Phase 3: attach to window first, yield one event loop turn so Cocoa
-        # propagates window references, THEN assign ScrollContainer contents
-        self.main_window.content = main_box
-        await asyncio.sleep(0)
+        # Phase 3b: add tabs now that the OptionContainer has a window
+        self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
+        self.content_tabs.content.append('DATA VIEW', self.create_data_view())
+        self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
+        self.content_tabs.content.append('RESULTS', self.create_results_view())
+        self.content_tabs.on_select = self._on_tab_select
+        await asyncio.sleep(0)                # let tab-selection delegate settle
 
+        # Phase 3c: now safe to assign ScrollContainer contents
         self.view.apply_scroll_contents()
         self.data_view.apply_scroll_contents()
         self.analysis_view.apply_scroll_contents()

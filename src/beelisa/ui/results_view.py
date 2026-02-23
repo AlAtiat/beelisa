@@ -36,18 +36,12 @@ class ResultsView:
         )
         # No content= here — assigned in apply_scroll_contents() after window attachment
         self._results_scroll = toga.ScrollContainer(style=Pack(flex=1))
-        self._outer_box = toga.Box(
-            children=[self._results_scroll],
-            style=Pack(direction=COLUMN, flex=1, margin=10),
-        )
-        self._outer_container = toga.ScrollContainer(style=Pack(flex=1))
-        return self._outer_container
+        return self._results_scroll
 
     def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment (outermost first)."""
-        self._outer_container.content = self._outer_box    # _outer_box enters window
-        self._results_scroll.content  = self._results_box  # _results_box enters window
-        self._plots_container.content = self._plots_box    # _plots_box enters window
+        """Phase 3: assign ScrollContainer content after window attachment."""
+        self._results_scroll.content = self._results_box   # _results_box (& _plots_container) enter window
+        self._plots_container.content = self._plots_box    # safe — _plots_container now in window
 
 
     def create_results_section(self):
