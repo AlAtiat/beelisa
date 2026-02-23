@@ -50,7 +50,8 @@ jobs:
       # --- Create ---
       - name: Create (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase create linux --target appimage
+        run: briefcase create linux appimage
+
 
 
       - name: Create
@@ -60,7 +61,7 @@ jobs:
       # --- Build ---
       - name: Build (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase build  linux --target appimage
+        run: briefcase build linux appimage
 
       - name: Build
         if: runner.os != 'Linux'
@@ -73,7 +74,7 @@ jobs:
 
       - name: Package (Linux AppImage)
         if: runner.os == 'Linux'
-        run: briefcase package linux --target appimage
+        run: briefcase package linux appimage
 
       - name: Package (Windows)
         if: runner.os == 'Windows'
