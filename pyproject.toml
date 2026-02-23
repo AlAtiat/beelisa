@@ -148,14 +148,15 @@ system_runtime_requires = [
 manylinux = "manylinux_2_28"
 
 system_requires = [
-    # Needed for PyGObject build (girepository-2.0 + GI)
+    # GLib / GI base
     "glib2-devel",
+
+    # This is the key addition:
+    "gobject-introspection",
     "gobject-introspection-devel",
 
-    # Needed for pycairo build
+    # Cairo + GTK build deps
     "cairo-gobject-devel",
-
-    # Needed for GTK3
     "gtk3-devel",
 
     # Common GTK runtime deps linuxdeploy may bundle
