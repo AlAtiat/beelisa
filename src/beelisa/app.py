@@ -169,8 +169,10 @@ class BeELISA(toga.App):
             style=Pack(direction=COLUMN, flex=1),
         )
 
-        # Phase 3: attach to window first, THEN assign ScrollContainer contents
+        # Phase 3: attach to window first, yield one event loop turn so Cocoa
+        # propagates window references, THEN assign ScrollContainer contents
         self.main_window.content = main_box
+        await asyncio.sleep(0)
 
         self.view.apply_scroll_contents()
         self.data_view.apply_scroll_contents()

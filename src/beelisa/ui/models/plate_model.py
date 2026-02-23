@@ -36,7 +36,7 @@ class PlateModel:
 
         # Colors in hex format for matplotlib (converted from RGB tuples)
         self.colors = {
-            WellType.EMPTY: "#FFFFFF48",            # White
+            WellType.EMPTY: "#E3E3E3",              # Light gray (visible on macOS light mode)
             WellType.BLANK: "#6666FF39",            # Blue
             WellType.CALIBRANT: "#33CC3339",        # Green
             WellType.SAMPLE: "#CC33334F",           # Red

@@ -44,10 +44,10 @@ class ResultsView:
         return self._outer_container
 
     def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment (innermost first)."""
-        self._plots_container.content = self._plots_box
-        self._results_scroll.content  = self._results_box
-        self._outer_container.content = self._outer_box
+        """Phase 3: assign ScrollContainer content after window attachment (outermost first)."""
+        self._outer_container.content = self._outer_box    # _outer_box enters window
+        self._results_scroll.content  = self._results_box  # _results_box enters window
+        self._plots_container.content = self._plots_box    # _plots_box enters window
 
 
     def create_results_section(self):
