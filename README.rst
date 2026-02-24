@@ -3,10 +3,13 @@ BeELISA
 .. raw:: html
 
    <div align="center">
-       <img src="src/beelisa/resources/icons/beelisa.png" width="220">
+       <img src="src/beelisa/resources/icons/beelisa.png" width="220"><br><br>
+       <img src="https://img.shields.io/github/v/release/AlAtiat/beelisa">
+       <img src="https://img.shields.io/github/license/AlAtiat/beelisa">
+       <img src="https://img.shields.io/badge/python-3.11+-blue">
    </div>
 
-Version 1.0.0 | Author: Aun Al Atiat | License: GNU GPLv3
+ Author: Aun Al Atiat | License: GNU GPLv3
 
 BeELISA is a cross-platform desktop application for the standardized and
 reproducible analysis of enzyme-linked immunosorbent assay (ELISA) data in
@@ -119,6 +122,32 @@ https://github.com/AlAtiat/beelisa/releases
 Run the installer.
 
 
+**Install (macOS)**
+
+Download the appropriate macOS build (Apple Silicon ARM64 or Intel x86_64) from:
+
+https://github.com/AlAtiat/beelisa/releases
+
+Open the downloaded file and move BeELISA to the Applications folder.
+
+If macOS displays a security warning, right-click the application, select “Open”, and confirm.
+
+
+**Install (Linux – Flatpak)**
+
+Download the latest `.flatpak` package from:
+
+https://github.com/AlAtiat/beelisa/releases
+
+Install via terminal:
+
+    flatpak install BeELISA-1.0.1-x86_64.flatpak
+
+After installation, launch BeELISA from your application menu or run:
+
+    flatpak run org.beelisa.beelisa
+
+
 Framework and Build System
 --------------------------
 
@@ -145,18 +174,17 @@ For more information, see:
 
 **Development Dependencies**
 
-Python 3.10+
+Python 3.11+
 
 Core libraries:
-    pandas,
-    numpy,
-    scipy,
-    scikit-learn >= 1.0.0,
-    matplotlib >= 3.5.0,
-    seaborn,
-    openpyxl,
+    pandas>=2.2,<2.4
+    numpy>=1.26,<2.0
+    scipy==1.13.1
+    scikit-learn>=1.4,<1.6
+    matplotlib>=3.8,<3.11
+    seaborn==0.13.2
+    openpyxl>=3.1,<4.0
     toga
-
 
 License
 -------

@@ -55,7 +55,7 @@ class AnalysisView:
         self._right_container = toga.ScrollContainer(style=Pack(flex=1))
         split = toga.SplitContainer(
             content=[self._left_container, self._right_container],
-            style=Pack(direction=COLUMN, flex=1, margin=10),
+            style=Pack(flex=1, margin=10),
         )
 
         run_btn = toga.Button(
