@@ -37,36 +37,14 @@ class Mainboard:
             children=[load_section],
             style=Pack(direction=COLUMN, flex=1),
         )
-        # No content= here — assigned in apply_scroll_contents() after window attachment
-        self._left_container  = toga.ScrollContainer(style=Pack(flex=1))
-        self._right_container = toga.ScrollContainer(style=Pack(flex=1))
+        self._left_container  = toga.ScrollContainer(content=self._left_box, style=Pack(flex=1))
+        self._right_container = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
         container = toga.SplitContainer(
             content=[self._left_container, self._right_container],
             style=Pack(flex=1, margin=10),
         )
         self.app.log("Loaded Main View")
         return container
-
-    def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment.
-        Return False if not ready yet so caller can retry.
-        """
-        if getattr(self, "_scroll_applied", False):
-            return True
-
-        if self._left_container is None or self._right_container is None:
-            return False
-        if self._left_box is None or self._right_box is None:
-            return False
-
-        # Critical macOS guard: only attach once both containers have a window
-        if self._left_container.window is None or self._right_container.window is None:
-            return False
-
-        self._left_container.content = self._left_box
-        self._right_container.content = self._right_box
-        self._scroll_applied = True
-        return True
 
     def create_plate_section(self):
         """Create plate configuration section."""

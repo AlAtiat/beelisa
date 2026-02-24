@@ -169,43 +169,8 @@ class BeELISA(toga.App):
             style=Pack(direction=COLUMN, flex=1),
         )
 
-        # Phase 3: attach to window first, yield one event loop turn so Cocoa
-        # propagates window references, THEN assign ScrollContainer contents
         self.main_window.content = main_box
-        # Start attaching scroll contents; retry until all views report ready
-        self._pending_scroll_attach = {"DATA IMPORT", "DATA VIEW", "ANALYSIS", "RESULTS"}
-        self.loop.call_soon(self._attach_all_scroll_contents_step)
-        
-    def _attach_all_scroll_contents_step(self):
-        pending = getattr(self, "_pending_scroll_attach", None)
-        if not pending:
-            return
 
-        done = set()
-
-        for tab in list(pending):
-            if tab == "DATA IMPORT":
-                ok = self.view.apply_scroll_contents()
-            elif tab == "DATA VIEW":
-                ok = self.data_view.apply_scroll_contents()
-            elif tab == "ANALYSIS":
-                ok = self.analysis_view.apply_scroll_contents()
-            elif tab == "RESULTS":
-                ok = self.results_view.apply_scroll_contents()
-            else:
-                ok = True
-
-            # Convention: return False => not ready yet, retry next tick
-            if ok is not False:
-                done.add(tab)
-
-        pending -= done
-        self._pending_scroll_attach = pending
-
-        if pending:
-            # keep trying next loop tick until all have a window
-            self.loop.call_soon(self._attach_all_scroll_contents_step)
-        
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):
         """Add a new plate to the collection."""
@@ -286,8 +251,6 @@ class BeELISA(toga.App):
 
     def _on_tab_select(self, widget):
         """Auto-refresh data-dependent tabs when data has changed."""
-        if getattr(self, "_pending_scroll_attach", None):
-            self.loop.call_soon(self._attach_all_scroll_contents_step)
         if not self._data_dirty:
             return
         try:

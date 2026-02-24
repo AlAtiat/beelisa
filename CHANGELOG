@@ -1,5 +1,11 @@
 # BeELISA Release Notes
 
+## 1.0.2 (24 Feb 2026)
+
+### Fix
+- Crossplatform ScrollContainer not None in GTK & Cocoa object construction
+
+
 ## 1.0.1 (24 Feb 2026)
 
 ### Added

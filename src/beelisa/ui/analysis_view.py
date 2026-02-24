@@ -50,9 +50,8 @@ class AnalysisView:
             children=[correlation, grouping],
             style=Pack(direction=COLUMN, flex=1),
         )
-        # No content= here — assigned in apply_scroll_contents() after window attachment
-        self._left_container  = toga.ScrollContainer(style=Pack(flex=1))
-        self._right_container = toga.ScrollContainer(style=Pack(flex=1))
+        self._left_container  = toga.ScrollContainer(content=self._left_box, style=Pack(flex=1))
+        self._right_container = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
         split = toga.SplitContainer(
             content=[self._left_container, self._right_container],
             style=Pack(flex=1, margin=10),
@@ -71,30 +70,6 @@ class AnalysisView:
         self.container = outer
         return outer
 
-    def apply_scroll_contents(self):
-        """Assign ScrollContainer content after window attachment.
-        Returns:
-            True  -> content applied (or already applied)
-            False -> not ready yet; caller should retry next tick
-        """
-        # Already applied? (optional but nice)
-        if getattr(self, "_scroll_applied", False):
-            return True
-
-        # If containers aren't ready yet, do nothing
-        if self._left_container is None or self._right_container is None:
-            return False
-
-        # On macOS, window can still be None until the tab is fully attached
-        if self._left_container.window is None or self._right_container.window is None:
-            return False
-
-        # Safe to attach now
-        self._left_container.content = self._left_box
-        self._right_container.content = self._right_box
-        self._scroll_applied = True
-        return True
-    
     def create_configuration_section(self):
         """Create calibrant input, dilution factor, and LOD/LOQ mode."""
         config_box = toga.Box(style=Pack(direction=COLUMN, margin=5))

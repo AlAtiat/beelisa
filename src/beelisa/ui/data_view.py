@@ -33,28 +33,9 @@ class DataView:
             children=[controls, filters, self.table_holder, summary],
             style=Pack(direction=COLUMN, margin=10, flex=1),
         )
-        # No content= here — assigned in apply_scroll_contents() after window attachment
-        self.container = toga.ScrollContainer(style=Pack(flex=1))
+        self.container = toga.ScrollContainer(content=self._scroll_box, style=Pack(flex=1))
         return self.container
 
-    def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment.
-        Return False if not ready yet so caller can retry.
-        """
-        if getattr(self, "_scroll_applied", False):
-            return True
-
-        if self.container is None or self._scroll_box is None:
-            return False
-
-        # Critical macOS guard
-        if self.container.window is None:
-            return False
-
-        self.container.content = self._scroll_box
-        self._scroll_applied = True
-        return True
-    
     def create_controls(self):
         """Create control buttons"""
         controls = toga.Box(style=Pack(direction=ROW, margin=5))
