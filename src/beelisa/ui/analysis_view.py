@@ -272,15 +272,15 @@ class AnalysisView:
 
 
 
-        # Trend Analysis Settings
+        # Pattern Analysis Settings
         config_box.add(toga.Divider())
         trend_header = toga.Label(
-            'Trend Analysis Settings:',
+            'Pattern Analysis Settings:',
             style=Pack(margin=5, font_weight='bold')
         )
         config_box.add(trend_header)
 
-        # Trend X-axis variable
+        # Pattern X-axis variable
         trend_date_box = toga.Box(style=Pack(direction=ROW, margin=5))
         trend_date_label = toga.Label(
             'X-Axis Variable:',
@@ -293,7 +293,7 @@ class AnalysisView:
         trend_date_box.add(trend_date_label, self.trend_date_var)
         config_box.add(trend_date_box)
 
-        # Trend value variable
+        # Pattern value variable
         trend_value_box = toga.Box(style=Pack(direction=ROW, margin=5))
         trend_value_label = toga.Label(
             'Value Column:',
@@ -306,7 +306,7 @@ class AnalysisView:
         trend_value_box.add(trend_value_label, self.trend_value_var)
         config_box.add(trend_value_box)
 
-        # Trend grouping variable
+        # Pattern grouping variable
         trend_group_box = toga.Box(style=Pack(direction=ROW, margin=5))
         trend_group_label = toga.Label(
             'Grouping Column:',

@@ -7,7 +7,7 @@ from .tnm import TNMProcessor, ClinicalDataProcessor
 from .visualization import DISPLAY_NAMES
 
 
-# Trend analysis helper
+# Pattern Analysis helper
 
 def build_trend_jobs(plot_df, trend_date, trend_value, trend_group):
     """Build a list of trend-plot jobs after detecting TNM / UICC columns.
@@ -47,7 +47,7 @@ def build_trend_jobs(plot_df, trend_date, trend_value, trend_group):
                 jobs.append({
                     'df': parsed_df, 'x_col': stage_col, 'group': group,
                     'x_label': stage_display,
-                    'title': f'Trend: {y_label} by {stage_display}',
+                    'title': f'Pattern: {y_label} by {stage_display}',
                     'prefix': stage_col.replace('_Stage_display', '').replace('_', ''),
                 })
     elif group_is_tnm:
@@ -58,7 +58,7 @@ def build_trend_jobs(plot_df, trend_date, trend_value, trend_group):
                 jobs.append({
                     'df': parsed_df, 'x_col': trend_date, 'group': stage_col,
                     'x_label': x_label,
-                    'title': f'Trend: {y_label} grouped by {stage_display}',
+                    'title': f'Pattern: {y_label} grouped by {stage_display}',
                     'prefix': stage_col.replace('_Stage_display', '').replace('_', ''),
                 })
     else:
@@ -70,7 +70,7 @@ def build_trend_jobs(plot_df, trend_date, trend_value, trend_group):
         jobs.append({
             'df': job_df, 'x_col': trend_date, 'group': group,
             'x_label': x_label,
-            'title': f'Trend: {y_label} vs {x_label}',
+            'title': f'Pattern: {y_label} vs {x_label}',
             'prefix': None,
         })
 

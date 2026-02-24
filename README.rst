@@ -84,7 +84,7 @@ Replicate agreement is assessed by the coefficient of variation (CV):
 Quantified biomarker concentrations are correlated with ordinal clinical
 staging variables (TNM classification, UICC stage) using Spearman rank
 correlation. Multiple testing correction is applied using the
-Benjamini-Hochberg false discovery rate (FDR) procedure. Trend
+Benjamini-Hochberg false discovery rate (FDR) procedure. Pattern
 visualization uses locally weighted scatterplot smoothing (LOWESS).
 Batch effects across plates are assessed by principal component analysis
 (PCA) of plate-level QC metrics.

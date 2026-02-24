@@ -136,7 +136,7 @@ class ResultsView:
             style=Pack(margin=2, flex=1)
         )
         self.plot_trend_btn = toga.Button(
-            'Trend Analysis',
+            'Pattern Analysis',
             on_press=self.on_show_trend,
             style=Pack(margin=2, flex=1)
         )
@@ -573,9 +573,9 @@ class ResultsView:
                             key = key.replace('trend_', f'trend_tnm_{job["prefix"]}_', 1)
                         self.current_plots[key] = path
 
-                self.app.log(f'Created trend plot(s) for {trend_value}')
+                self.app.log(f'Created Pattern plot(s) for {trend_value}')
             except Exception as e:
-                self.app.log(f'Error creating trend plot: {str(e)}')
+                self.app.log(f'Error creating Pattern plot: {str(e)}')
 
         # Clinical Analysis (multi-column: TNM, UICC, staging, age, etc.)
         clinical_columns = self.app.analysis_config.get('tnm_columns', [])
@@ -755,13 +755,13 @@ class ResultsView:
         if not keys:
             await self.app.main_window.dialog(
                 toga.InfoDialog(
-                    'No Trend Plot',
-                    'Please configure trend settings in Analysis tab and run analysis.'
+                    'No Pattern Plot',
+                    'Please configure pattern settings in Analysis tab and run analysis.'
                 )
             )
             return
 
-        gallery = [(k, self.current_plots[k], f"Trend • {k.replace('trend_', '').replace('_', ' ')}") for k in keys]
+        gallery = [(k, self.current_plots[k], f"Pattern • {k.replace('trend_', '').replace('_', ' ')}") for k in keys]
         self._set_gallery(gallery, start_index=0)
 
 

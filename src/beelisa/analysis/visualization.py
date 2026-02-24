@@ -767,13 +767,13 @@ class ELISAVisualizer:
         value_column: str,
         grouping_column: str = None,
         plate_groups: dict = None,
-        title: str = "Trend",
+        title: str = "Pattern",
         colormap: str = "viridis",
         y_label: str = None,
         x_label: str = None
     ) -> Dict[str, str]:
         """
-        Create cyclable trend plot images: scatter-only, per-group, and grid.
+        Create cyclable Pattern plot images: scatter-only, per-group, and grid.
 
         Returns a dict of {key: png_path} with sorted keys for cycling order:
         - trend_0_scatter: all data, no trend lines
