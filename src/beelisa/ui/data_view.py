@@ -38,8 +38,22 @@ class DataView:
         return self.container
 
     def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment."""
+        """Phase 3: assign ScrollContainer content after window attachment.
+        Return False if not ready yet so caller can retry.
+        """
+        if getattr(self, "_scroll_applied", False):
+            return True
+
+        if self.container is None or self._scroll_box is None:
+            return False
+
+        # Critical macOS guard
+        if self.container.window is None:
+            return False
+
         self.container.content = self._scroll_box
+        self._scroll_applied = True
+        return True
     
     def create_controls(self):
         """Create control buttons"""

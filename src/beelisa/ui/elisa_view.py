@@ -48,9 +48,25 @@ class Mainboard:
         return container
 
     def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment."""
-        self._left_container.content  = self._left_box
+        """Phase 3: assign ScrollContainer content after window attachment.
+        Return False if not ready yet so caller can retry.
+        """
+        if getattr(self, "_scroll_applied", False):
+            return True
+
+        if self._left_container is None or self._right_container is None:
+            return False
+        if self._left_box is None or self._right_box is None:
+            return False
+
+        # Critical macOS guard: only attach once both containers have a window
+        if self._left_container.window is None or self._right_container.window is None:
+            return False
+
+        self._left_container.content = self._left_box
         self._right_container.content = self._right_box
+        self._scroll_applied = True
+        return True
 
     def create_plate_section(self):
         """Create plate configuration section."""

@@ -115,8 +115,8 @@ class BeELISA(toga.App):
         except Exception:
             pass
         
-        version = self.app.version
-        author = self.app.author
+        version = self.version
+        author = self.author
         box.add(toga.Label('BeELISA', style=Pack(font_size=24, font_weight='bold', margin=10)))
         box.add(toga.Label(f'v{version}  •  {author}', style=Pack(font_size=10, color='#666666', margin=(0,10,10,10))))
         box.add(toga.Label('Initializing\u2026', style=Pack(font_size=12, margin=5)))
@@ -148,6 +148,14 @@ class BeELISA(toga.App):
         self.analysis_view = AnalysisView(self)
         self.results_view = ResultsView(self)
 
+        # Build all children before assembling the main box
+        self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
+        self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
+        self.content_tabs.content.append('DATA VIEW', self.create_data_view())
+        self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
+        self.content_tabs.content.append('RESULTS', self.create_results_view())
+        self.content_tabs.on_select = self._on_tab_select
+
         self.loading = toga.ActivityIndicator(style=Pack(width=10, height=10))
         loading_box = toga.Box(
             children=[self.loading],
@@ -155,30 +163,49 @@ class BeELISA(toga.App):
         )
         self.status_label = toga.Label('Ready', style=Pack(margin=2))
 
-        # Phase 3a: attach OptionContainer with NO tabs so Cocoa's
-        # tabView_didSelectTabViewItem_ has nothing to cascade into.
-        self.content_tabs = toga.OptionContainer(style=Pack(flex=2))
+        # Assemble main_box with all children ready
         main_box = toga.Box(
             children=[self.content_tabs, loading_box, self.status_label],
             style=Pack(direction=COLUMN, flex=1),
         )
-        self.main_window.content = main_box   # no tabs → delegate is a no-op
-        await asyncio.sleep(0)                # window refs now propagated
 
-        # Phase 3b: add tabs now that the OptionContainer has a window
-        self.content_tabs.content.append('DATA IMPORT', self.create_elisa_view())
-        self.content_tabs.content.append('DATA VIEW', self.create_data_view())
-        self.content_tabs.content.append('ANALYSIS', self.create_analysis_view())
-        self.content_tabs.content.append('RESULTS', self.create_results_view())
-        self.content_tabs.on_select = self._on_tab_select
-        await asyncio.sleep(0)                # let tab-selection delegate settle
+        # Phase 3: attach to window first, yield one event loop turn so Cocoa
+        # propagates window references, THEN assign ScrollContainer contents
+        self.main_window.content = main_box
+        # Start attaching scroll contents; retry until all views report ready
+        self._pending_scroll_attach = {"DATA IMPORT", "DATA VIEW", "ANALYSIS", "RESULTS"}
+        self.loop.call_soon(self._attach_all_scroll_contents_step)
+        
+    def _attach_all_scroll_contents_step(self):
+        pending = getattr(self, "_pending_scroll_attach", None)
+        if not pending:
+            return
 
-        # Phase 3c: now safe to assign ScrollContainer contents
-        self.view.apply_scroll_contents()
-        self.data_view.apply_scroll_contents()
-        self.analysis_view.apply_scroll_contents()
-        self.results_view.apply_scroll_contents()
+        done = set()
 
+        for tab in list(pending):
+            if tab == "DATA IMPORT":
+                ok = self.view.apply_scroll_contents()
+            elif tab == "DATA VIEW":
+                ok = self.data_view.apply_scroll_contents()
+            elif tab == "ANALYSIS":
+                ok = self.analysis_view.apply_scroll_contents()
+            elif tab == "RESULTS":
+                ok = self.results_view.apply_scroll_contents()
+            else:
+                ok = True
+
+            # Convention: return False => not ready yet, retry next tick
+            if ok is not False:
+                done.add(tab)
+
+        pending -= done
+        self._pending_scroll_attach = pending
+
+        if pending:
+            # keep trying next loop tick until all have a window
+            self.loop.call_soon(self._attach_all_scroll_contents_step)
+        
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):
         """Add a new plate to the collection."""
@@ -259,6 +286,8 @@ class BeELISA(toga.App):
 
     def _on_tab_select(self, widget):
         """Auto-refresh data-dependent tabs when data has changed."""
+        if getattr(self, "_pending_scroll_attach", None):
+            self.loop.call_soon(self._attach_all_scroll_contents_step)
         if not self._data_dirty:
             return
         try:

@@ -36,12 +36,48 @@ class ResultsView:
         )
         # No content= here — assigned in apply_scroll_contents() after window attachment
         self._results_scroll = toga.ScrollContainer(style=Pack(flex=1))
-        return self._results_scroll
+        self._outer_box = toga.Box(
+            children=[self._results_scroll],
+            style=Pack(direction=COLUMN, flex=1, margin=10),
+        )
+        self._outer_container = toga.ScrollContainer(style=Pack(flex=1))
+        return self._outer_container
 
     def apply_scroll_contents(self):
-        """Phase 3: assign ScrollContainer content after window attachment."""
-        self._results_scroll.content = self._results_box   # _results_box (& _plots_container) enter window
-        self._plots_container.content = self._plots_box    # safe — _plots_container now in window
+        """Phase 3: assign ScrollContainer content after window attachment (outermost first).
+        Returns False if not ready yet so caller can retry.
+        """
+        if getattr(self, "_scroll_applied", False):
+            return True
+
+        # Basic sanity
+        if self._outer_container is None or self._outer_box is None:
+            return False
+
+        # Stage 1: outer container must have a window before setting content
+        if self._outer_container.window is None:
+            return False
+
+        # Attach outer content (safe now)
+        if self._outer_container.content is None:
+            self._outer_container.content = self._outer_box
+
+        # Stage 2: now the inner scroll containers should eventually get a window
+        # (but may still be None for a tick)
+        if self._results_scroll is not None and self._results_box is not None:
+            if self._results_scroll.window is None:
+                return False
+            if self._results_scroll.content is None:
+                self._results_scroll.content = self._results_box
+
+        if getattr(self, "_plots_container", None) is not None and getattr(self, "_plots_box", None) is not None:
+            if self._plots_container.window is None:
+                return False
+            if self._plots_container.content is None:
+                self._plots_container.content = self._plots_box
+
+        self._scroll_applied = True
+        return True
 
 
     def create_results_section(self):
