@@ -120,3 +120,42 @@ def lowess_with_band(x, y, use_log_y=False, frac=0.3):
         q75_band = np.exp(np.array(q75_band))
 
     return x_smooth, y_smooth, np.array(x_band), np.array(q25_band), np.array(q75_band)
+
+
+def descriptive_stats(y, confidence=0.95):
+    """Descriptive statistics for a data array.
+
+    Computes mean, median, sample SD (ddof=1), IQR (Q25/Q75), and a
+    parametric confidence interval for the mean using the t-distribution
+    (two-sided, df = n-1), which is valid for any sample size.
+
+    Args:
+        y: Array-like of numeric values
+        confidence: CI level, default 0.95
+
+    Returns:
+        dict with keys mean, median, sd, q25, q75, ci_low, ci_high, n
+        or None if n < 2
+    """
+    from scipy import stats as scipy_stats
+
+    y = np.asarray(y, float)
+    y = y[np.isfinite(y)]
+    n = len(y)
+    if n < 2:
+        return None
+
+    mean   = float(np.mean(y))
+    median = float(np.median(y))
+    sd     = float(np.std(y, ddof=1))
+    q25    = float(np.percentile(y, 25))
+    q75    = float(np.percentile(y, 75))
+
+    se     = sd / np.sqrt(n)
+    t_crit = scipy_stats.t.ppf((1 + confidence) / 2, df=n - 1)
+    ci_low  = mean - t_crit * se
+    ci_high = mean + t_crit * se
+
+    return dict(mean=mean, median=median, sd=sd,
+                q25=q25, q75=q75,
+                ci_low=ci_low, ci_high=ci_high, n=n)

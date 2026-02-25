@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 from matplotlib.patches import Circle, Ellipse
 from .parsers.base import sort_key as _smart_sort_key
-from .statistics import spearman_correlation, benjamini_hochberg, lowess_with_band
+from .statistics import spearman_correlation, benjamini_hochberg, lowess_with_band, descriptive_stats
 
 
 # Use non-interactive
@@ -109,15 +109,15 @@ class ELISAVisualizer:
             r_squared = curve_result.get('r_squared')
             bic = curve_result.get('bic')
             rmse = curve_result.get('rmse')
-            adjusted_r_squared = curve_result.get('adjusted_r_squared')
+            # adjusted_r_squared = curve_result.get('adjusted_r_squared')
 
             # Handle None values gracefully
             r2_str = f"{r_squared:.4f}" if r_squared is not None else 'N/A'
             bic_str = f"{bic:.2f}" if bic is not None else 'N/A'
             rmse_str = f"{rmse:.2f}" if rmse is not None else 'N/A'
-            adjusted_r_squared_str = f"{adjusted_r_squared:.4f}" if adjusted_r_squared is not None else 'N/A'
+            # adjusted_r_squared_str = f"{adjusted_r_squared:.4f}" if adjusted_r_squared is not None else 'N/A'
 
-            textstr = f'Model: {model_name}\nR²: {r2_str}\nBIC: {bic_str}\nRMSE: {rmse_str}\nAdj. R²: {adjusted_r_squared_str}'
+            textstr = f'Model: {model_name}\nR²: {r2_str}\nBIC: {bic_str}\nRMSE: {rmse_str}'
             ax.text(0.05, 0.95, textstr, transform=ax.transAxes,
                     verticalalignment='top', bbox=dict(facecolor='white', alpha=0.8), fontsize=10, family='monospace')
 
@@ -671,14 +671,41 @@ class ELISAVisualizer:
                    marker=group['marker'], facecolors='none', edgecolors=group['color'],
                    s=20, alpha=0.8, linewidths=1)
 
-        # LOWESS trend + IQR band
-        x_t, y_t, x_b, y_25, y_75 = self._compute_lowess_with_band(
+        # LOWESS trend line
+        x_t, y_t, *_ = self._compute_lowess_with_band(
             x_vals, y_vals, use_log_y=use_log_y)
         if x_t is not None:
             ax.plot(x_t, y_t, color=group['color'], linewidth=2, alpha=0.8,
                     linestyle=group['linestyle'])
-            ax.fill_between(x_b, y_25, y_75, alpha=0.15,
-                            color=group['color'], edgecolor='none')
+
+        # --- Horizontal reference bands & lines (global descriptive stats) ---
+        dstats = descriptive_stats(y_vals)
+        if dstats:
+            from matplotlib.patches import Patch
+            _lo = lambda v: max(v, 1e-9) if use_log_y else v  # noqa: E731
+
+            # IQR and 95% CI bands — tinted in the group's colormap color
+            ax.axhspan(_lo(dstats['q25']), dstats['q75'],
+                       alpha=0.18, color=group['color'], zorder=0, lw=0)
+            ax.axhspan(_lo(dstats['ci_low']), dstats['ci_high'],
+                       alpha=0.22, color=group['color'], zorder=0, lw=0)
+
+            # Mean and median
+            ax.axhline(dstats['mean'],   color="#333333A1", linestyle='--', lw=0.9, zorder=1, alpha=0.50)
+            ax.axhline(dstats['median'], color='#333333A1', linestyle='-.', lw=0.8, zorder=1, alpha=0.50)
+
+            # Reference bands legend with mean/median line shapes
+            from matplotlib.lines import Line2D
+            band_handles = [
+                Patch(color=group['color'], alpha=0.3, label='IQR'),
+                Patch(color=group['color'], alpha=0.7, label='95% CI'),
+                Line2D([0], [0], color='#333333', linestyle='--', lw=0.9, alpha=0.7,
+                       label=f'Mean ({dstats["mean"]:.3f})'),
+                Line2D([0], [0], color='#333333', linestyle='-.', lw=0.8, alpha=0.7,
+                       label=f'Median ({dstats["median"]:.3f})'),
+            ]
+            ax.legend(handles=band_handles, loc='lower right', fontsize=7,
+                      framealpha=0.8, title='Reference', title_fontsize=7)
 
         group_title = f'{title} - {group["label"]}'
         self._format_trend_axes(ax, categorical_x, unique_x, use_log_y,
@@ -692,6 +719,10 @@ class ELISAVisualizer:
             pval_str = f'p = {pval:.3f}' if pval >= 0.001 else 'p < 0.001'
             ann_lines.append(pval_str)
         ann_lines.append(f'n = {n}')
+        # Descriptive statistics block
+        dstats = descriptive_stats(y_vals)
+        if dstats:
+            ann_lines.append(f'SD = {dstats["sd"]:.3f}')
         ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                 ha='left', va='top', fontsize=8, family='monospace',
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
@@ -726,14 +757,35 @@ class ELISAVisualizer:
                        marker=group['marker'], facecolors='none', edgecolors=group['color'],
                        s=15, alpha=0.8, linewidths=0.8)
 
-            # LOWESS trend + IQR band
-            x_t, y_t, x_b, y_25, y_75 = self._compute_lowess_with_band(
+            # LOWESS trend line
+            x_t, y_t, *_ = self._compute_lowess_with_band(
                 x_vals, y_vals, use_log_y=use_log_y)
             if x_t is not None:
                 ax.plot(x_t, y_t, color=group['color'], linewidth=2, alpha=0.8,
                         linestyle=group['linestyle'])
-                ax.fill_between(x_b, y_25, y_75, alpha=0.15,
-                                color=group['color'], edgecolor='none')
+
+            # IQR / 95% CI bands + mean / median lines
+            dstats_g = descriptive_stats(y_vals)
+            if dstats_g:
+                from matplotlib.patches import Patch
+                from matplotlib.lines import Line2D
+                _lo = lambda v: max(v, 1e-9) if use_log_y else v  # noqa: E731
+                ax.axhspan(_lo(dstats_g['q25']), dstats_g['q75'],
+                           alpha=0.18, color=group['color'], zorder=0, lw=0)
+                ax.axhspan(_lo(dstats_g['ci_low']), dstats_g['ci_high'],
+                           alpha=0.22, color=group['color'], zorder=0, lw=0)
+                ax.axhline(dstats_g['mean'],   color='#555555', linestyle='--', lw=0.7, zorder=1, alpha=0.45)
+                ax.axhline(dstats_g['median'], color='#555555', linestyle='-.', lw=0.7, zorder=1, alpha=0.45)
+                band_handles = [
+                    Patch(color=group['color'], alpha=0.3, label='IQR'),
+                    Patch(color=group['color'], alpha=0.7, label='95% CI'),
+                    Line2D([0], [0], color='#555555', linestyle='--', lw=0.7, alpha=0.6,
+                           label=f'Mean ({dstats_g["mean"]:.3f})'),
+                    Line2D([0], [0], color='#555555', linestyle='-.', lw=0.7, alpha=0.6,
+                           label=f'Median ({dstats_g["median"]:.3f})'),
+                ]
+                ax.legend(handles=band_handles, loc='lower right', fontsize=5.5,
+                          framealpha=0.8, title='Reference', title_fontsize=5.5)
 
             self._format_trend_axes(ax, categorical_x, unique_x, use_log_y,
                                      x_label, y_axis_label, group['label'], small=True)
@@ -746,6 +798,10 @@ class ELISAVisualizer:
                 pval_str = f'p={pval:.3f}' if pval >= 0.001 else 'p<.001'
                 ann_lines.append(pval_str)
             ann_lines.append(f'n={n_pts}')
+            # descriptive statistics
+            dstats = descriptive_stats(y_vals)
+            if dstats:
+                ann_lines.append(f'SD={dstats["sd"]:.3f}')
             ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                     ha='left', va='top', fontsize=7, family='monospace',
                     bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
