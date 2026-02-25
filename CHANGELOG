@@ -1,5 +1,14 @@
 # BeELISA Release Notes
 
+## 1.0.3 (25 Feb 2026)
+
+### Fix
+- Windows: Both SplitContainer panels scroll
+- Linux: Both panels scroll and Scrollcontainers are not None
+- macOS: App loads past splash; both panels scroll after deferred assign
+- all platforms running
+
+
 ## 1.0.2 (24 Feb 2026)
 
 ### Fix

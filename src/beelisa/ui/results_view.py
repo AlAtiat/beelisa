@@ -27,20 +27,12 @@ class ResultsView:
         self.group_name_input = None
 
     def create_layout(self):
-        """Create result view layout """
-        # Phase 2: build all content; ScrollContainers created without content
+        """Create result view layout."""
         results = self.create_results_section()
-        self._results_box = toga.Box(
+        return toga.Box(
             children=[results],
-            style=Pack(direction=COLUMN, flex=1),
-        )
-        self._results_scroll = toga.ScrollContainer(content=self._results_box, style=Pack(flex=1))
-        self._outer_box = toga.Box(
-            children=[self._results_scroll],
             style=Pack(direction=COLUMN, flex=1, margin=10),
         )
-        self._outer_container = toga.ScrollContainer(content=self._outer_box, style=Pack(flex=1))
-        return self._outer_container
 
 
     def create_results_section(self):
@@ -82,7 +74,7 @@ class ResultsView:
         )
         model_comp_box.add(self.model_comparison)
 
-        # Plots tab — build all children before wrapping in ScrollContainer
+        # Plots tab
         self.plot_std_curve_btn = toga.Button(
             'Standard Curve',
             on_press=self.on_show_standard_curve,
@@ -165,12 +157,10 @@ class ResultsView:
             children=[plot_buttons_box, nav_outer, nav_under, self.plot_imageview],
             style=Pack(direction=COLUMN, flex=1),
         )
-        self._plots_container = toga.ScrollContainer(content=self._plots_box, style=Pack(flex=1))
-
         self.results_tabs.content.append('Results Table', results_table_box)
         self.results_tabs.content.append('QC Summary', qc_box)
         self.results_tabs.content.append('Model Comparison', model_comp_box)
-        self.results_tabs.content.append('Plots', self._plots_container)
+        self.results_tabs.content.append('Plots', self._plots_box)
 
         # Export section
         export_box = toga.Box(style=Pack(direction=ROW, margin=5))

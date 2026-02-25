@@ -1,4 +1,5 @@
 import asyncio
+import sys
 
 import toga
 from toga.style import Pack
@@ -170,6 +171,23 @@ class BeELISA(toga.App):
         )
 
         self.main_window.content = main_box
+
+        # macOS: ScrollContainer panels were created with content=None (safe at construction).
+        # Now that main_window is attached, sc.window is valid — assign content without crashing.
+        if sys.platform == 'darwin':
+            await asyncio.sleep(0)
+            # Toga 0.5.3: OptionContainer stores tab content in self.content (OptionListProperty),
+            # NOT in self.children, so the standard window.setter cascade from
+            # main_window.content = main_box never reaches tab content widgets.
+            # Force-propagate window so ScrollContainer.set_bounds() can call layoutIfNeeded()
+            # when tabs are clicked (tabView_didSelectTabViewItem_).
+            for item in self.content_tabs.content:
+                if item.content is not None:
+                    item.content.window = self.main_window
+            self.view._left_sc.content           = self.view._left_box
+            self.view._right_sc.content          = self.view._right_box
+            self.analysis_view._left_sc.content  = self.analysis_view._left_box
+            self.analysis_view._right_sc.content = self.analysis_view._right_box
 
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):

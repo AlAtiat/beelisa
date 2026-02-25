@@ -1,3 +1,4 @@
+import sys
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
@@ -25,7 +26,6 @@ class Mainboard:
         
     def create_layout(self):
         """Create ELISA analysis view layout."""
-        # Phase 2: build all content; ScrollContainers created without content
         plate_section = self.create_plate_section()
         load_section = self.create_load_section()
 
@@ -37,10 +37,19 @@ class Mainboard:
             children=[load_section],
             style=Pack(direction=COLUMN, flex=1),
         )
-        self._left_container  = toga.ScrollContainer(content=self._left_box, style=Pack(flex=1))
-        self._right_container = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
+        # Cocoa: content must be None at construction — flex=1 triggers a layout pass that needs
+        # window._impl, but window is None until main_window.content is set. Content is assigned
+        # in app.on_running() after main_window is attached.
+        # GTK / WinForms: content is safe to set immediately (no layoutIfNeeded() equivalent).
+        if sys.platform == 'darwin':
+            self._left_sc  = toga.ScrollContainer(style=Pack(flex=1))
+            self._right_sc = toga.ScrollContainer(style=Pack(flex=1))
+        else:
+            self._left_sc  = toga.ScrollContainer(content=self._left_box,  style=Pack(flex=1))
+            self._right_sc = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
+
         container = toga.SplitContainer(
-            content=[self._left_container, self._right_container],
+            content=[self._left_sc, self._right_sc],
             style=Pack(flex=1, margin=10),
         )
         self.app.log("Loaded Main View")

@@ -12,8 +12,7 @@ class DataView:
         self.well_type_checkboxes = {}
         
     def create_layout(self):
-        """Create data view layout"""
-        # Phase 2: build all content; ScrollContainer created without content
+        """Create data view layout."""
         controls = self.create_controls()
         filters = self.create_filter_section()
 
@@ -29,12 +28,10 @@ class DataView:
 
         summary = self.create_summary()
 
-        self._scroll_box = toga.Box(
+        return toga.Box(
             children=[controls, filters, self.table_holder, summary],
             style=Pack(direction=COLUMN, margin=10, flex=1),
         )
-        self.container = toga.ScrollContainer(content=self._scroll_box, style=Pack(flex=1))
-        return self.container
 
     def create_controls(self):
         """Create control buttons"""

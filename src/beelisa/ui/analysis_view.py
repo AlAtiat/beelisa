@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
@@ -37,7 +38,6 @@ class AnalysisView:
 
     def create_layout(self):
         """Create analysis view layout."""
-        # Phase 2: build all content; ScrollContainers created without content
         config = self.create_configuration_section()
         correlation = self.create_correlation_settings_section()
         grouping = self.create_plate_grouping_section()
@@ -50,10 +50,19 @@ class AnalysisView:
             children=[correlation, grouping],
             style=Pack(direction=COLUMN, flex=1),
         )
-        self._left_container  = toga.ScrollContainer(content=self._left_box, style=Pack(flex=1))
-        self._right_container = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
+        # Cocoa: content must be None at construction — flex=1 triggers a layout pass that needs
+        # window._impl, but window is None until main_window.content is set. Content is assigned
+        # in app.on_running() after main_window is attached.
+        # GTK / WinForms: content is safe to set immediately (no layoutIfNeeded() equivalent).
+        if sys.platform == 'darwin':
+            self._left_sc  = toga.ScrollContainer(style=Pack(flex=1))
+            self._right_sc = toga.ScrollContainer(style=Pack(flex=1))
+        else:
+            self._left_sc  = toga.ScrollContainer(content=self._left_box,  style=Pack(flex=1))
+            self._right_sc = toga.ScrollContainer(content=self._right_box, style=Pack(flex=1))
+
         split = toga.SplitContainer(
-            content=[self._left_container, self._right_container],
+            content=[self._left_sc, self._right_sc],
             style=Pack(flex=1, margin=10),
         )
 
