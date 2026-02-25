@@ -204,6 +204,14 @@ class AnalysisView:
         pca_label_box.add(pca_label_label, self.pca_show_plate_names)
         config_box.add(pca_label_box)
 
+        # Standard curve axis options
+        sc_log_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        sc_log_box.add(toga.Label('Log Standard Curve:', style=Pack(margin=5, width=150)))
+        self.std_curve_log_x = toga.Switch('X Axis (Concentration)', style=Pack(margin=5), value=True)
+        self.std_curve_log_y = toga.Switch('Y Axis (OD)', style=Pack(margin=5), value=False)
+        sc_log_box.add(self.std_curve_log_x, self.std_curve_log_y)
+        config_box.add(sc_log_box)
+
         # Heatmap configuration header
         config_box.add(toga.Divider())
         heatmap_header = toga.Label(
@@ -783,7 +791,9 @@ class AnalysisView:
             'trend_grouping_var': trend_grouping_var,
             'tnm_columns': tnm_columns,
             'tnm_biomarker': tnm_biomarker,
-            'pca_show_plate_names': self.pca_show_plate_names.value if hasattr(self, 'pca_show_plate_names') else False
+            'pca_show_plate_names': self.pca_show_plate_names.value if hasattr(self, 'pca_show_plate_names') else False,
+            'std_curve_log_x': self.std_curve_log_x.value if hasattr(self, 'std_curve_log_x') else True,
+            'std_curve_log_y': self.std_curve_log_y.value if hasattr(self, 'std_curve_log_y') else False,
         }
 
         # Run analysis

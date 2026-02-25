@@ -62,7 +62,9 @@ class ELISAVisualizer:
         calibrant_od_values: np.ndarray,
         curve_result: Dict,
         plate_name: str = "Plate",
-        colormap: str = 'viridis'
+        colormap: str = 'viridis',
+        log_x: bool = True,
+        log_y: bool = False,
     ) -> str:
         """
         Create standard curve plot with fitted curve overlay.
@@ -93,11 +95,12 @@ class ELISAVisualizer:
             params = curve_result.get('params')
 
             # Generate smooth curve
-            x_range = np.linspace(
-                calibrant_concentrations.min(),
-                calibrant_concentrations.max(),
-                200
-            )
+            x_min = max(calibrant_concentrations.min(), 1e-9)
+            x_max = calibrant_concentrations.max()
+            if log_x:
+                x_range = np.logspace(np.log10(x_min), np.log10(x_max), 200)
+            else:
+                x_range = np.linspace(x_min, x_max, 200)
             y_fitted = model.equation(x_range, *params)
 
 
@@ -122,9 +125,17 @@ class ELISAVisualizer:
                     verticalalignment='top', bbox=dict(facecolor='white', alpha=0.8), fontsize=10, family='monospace')
 
         # Formatting
-        ax.set_xscale('log')
-        ax.set_xlabel(f'Concentration ({self.concentration_unit})', fontsize=12, fontweight='bold')
-        ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength})', fontsize=12, fontweight='bold')
+        if log_x:
+            ax.set_xscale('log')
+            ax.set_xlabel(f'Concentration ({self.concentration_unit}) (Log)', fontsize=12, fontweight='bold')
+        else:
+            ax.set_xlabel(f'Concentration ({self.concentration_unit})', fontsize=12, fontweight='bold')
+        if log_y:
+            ax.set_yscale('log')
+            ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength}) (Log)', fontsize=12, fontweight='bold')
+        else:
+            ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength})', fontsize=12, fontweight='bold')
+
         ax.set_title(f'Standard Curve - {plate_name}', fontsize=14, fontweight='bold', pad=15)
         ax.legend(loc='best', fontsize=8)
         ax.grid(True, alpha=0.3, linestyle='--')
@@ -139,7 +150,9 @@ class ELISAVisualizer:
     def create_all_standard_curves_plot(
         self,
         all_curve_data: List[Dict],
-        colormap: str = 'viridis'
+        colormap: str = 'viridis',
+        log_x: bool = True,
+        log_y: bool = False,
     ) -> str:
         """
         Overlay all plates' standard curves on one plot.
@@ -178,7 +191,12 @@ class ELISAVisualizer:
             if curve_result.get('success'):
                 model = curve_result.get('model')
                 params = curve_result.get('params')
-                x_range = np.linspace(conc.min(), conc.max(), 200)
+                x_min = max(conc.min(), 1e-9)
+                x_max = conc.max()
+                if log_x:
+                    x_range = np.logspace(np.log10(x_min), np.log10(x_max), 200)
+                else:
+                    x_range = np.linspace(x_min, x_max, 200)
                 y_fitted = model.equation(x_range, *params)
                 ax.plot(x_range, y_fitted, color=color, linewidth=2, alpha=0.8,
                         label=annotation_label)
@@ -192,7 +210,10 @@ class ELISAVisualizer:
         #             verticalalignment='top', fontsize=8, family='monospace',
         #             bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
 
-        ax.set_xscale('log')
+        if log_x:
+            ax.set_xscale('log')
+        if log_y:
+            ax.set_yscale('log')
         ax.set_xlabel(f'Concentration ({self.concentration_unit})', fontsize=12, fontweight='bold')
         ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength})', fontsize=12, fontweight='bold')
         ax.set_title('Standard Curves - All Plates', fontsize=14, fontweight='bold', pad=15)

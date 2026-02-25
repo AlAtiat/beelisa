@@ -369,6 +369,8 @@ class ResultsView:
 
         # Get colormap from config
         plot_colormap = self.app.analysis_config.get('plots_colormap', 'viridis')
+        std_curve_log_x = self.app.analysis_config.get('std_curve_log_x', True)
+        std_curve_log_y = self.app.analysis_config.get('std_curve_log_y', False)
 
         # Generate plots for each plate
         for plate_name, curve_result in results.get('curve_fits', {}).items():
@@ -393,7 +395,9 @@ class ResultsView:
                                 od_values,
                                 curve_result,
                                 plate_name,
-                                colormap=plot_colormap
+                                colormap=plot_colormap,
+                                log_x=std_curve_log_x,
+                                log_y=std_curve_log_y,
                             )
                             self.app.log(f'Created standard curve plot: {std_curve_path}')
 
@@ -430,7 +434,8 @@ class ResultsView:
         if len(all_curve_data) > 1:
             try:
                 combined_path = visualizer.create_all_standard_curves_plot(
-                    all_curve_data, colormap=plot_colormap)
+                    all_curve_data, colormap=plot_colormap,
+                    log_x=std_curve_log_x, log_y=std_curve_log_y)
                 self.current_plots['std_curve_all'] = combined_path
                 self.app.log('Created combined standard curves plot')
             except Exception as e:
