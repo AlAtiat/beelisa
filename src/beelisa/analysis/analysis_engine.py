@@ -12,6 +12,7 @@ class AnalysisEngine:
         self.calibrant_concentrations = {}
         self.dilution_factor = 1.0
         self.lod_loq_mode = "per_plate"  # "per_plate" or "global"
+        self.apply_blank_subtraction = True
 
     def run_analysis(self, connected_df):
         """
@@ -59,25 +60,21 @@ class AnalysisEngine:
             lod = loq = None
             plate_data = connected_df[connected_df['plate_name'] == plate_name].copy()
 
-            # Fit standard curve
-            curve_result = self._fit_standard_curve(plate_data)
-            curve_fits[plate_name] = curve_result
-
-            # Calculate concentrations if curve fitting succeeded
-            if curve_result['success']:
-                plate_data = self._calculate_concentrations(plate_data, curve_result)
-            else:
-                # Mark all concentrations as None if curve fitting failed
-                plate_data['concentration'] = None
-                plate_data['concentration_dilution_corrected'] = None
-
-            # Calculate QC metrics
+            # Step A: QC from raw ODs (before any blank subtraction)
             qc = self._compute_qc_metrics(plate_data)
             qc_summary[plate_name] = qc
 
-            # Calculate LOD/LOQ
+            # Step B: Blank subtraction WITHOUT clip (preserves blank SD for LOD/LOQ)
+            blank_mean = 0.0
+            if self.apply_blank_subtraction:
+                blank_mean = self._compute_blank_mean(plate_data)
+                if blank_mean != 0.0:
+                    plate_data['od_value'] = plate_data['od_value'] - blank_mean
+                    self.app.log(f'[{plate_name}] Blank-subtracted {blank_mean:.4f} OD from all wells')
+
+            # Step C: LOD/LOQ from subtracted pre-clip ODs (blank SD is preserved here)
             if self.lod_loq_mode == "per_plate":
-                lod_od, loq_od = self._calculate_lod_loq(plate_data, curve_result)
+                lod_od, loq_od = self._calculate_lod_loq(plate_data, None)
                 if lod_od is not None and loq_od is not None:
                     lod_loq_method = "per_plate_od"
                 else:
@@ -88,6 +85,20 @@ class AnalysisEngine:
                 lod_od, loq_od = global_lod, global_loq
                 lod_loq_method = "global_od"
                 self.app.log(f"[{plate_name}] Using GLOBAL OD LOD/LOQ (mode=global).")
+
+            # Step D: Clip to 0 after LOD computation
+            if blank_mean != 0.0:
+                plate_data['od_value'] = plate_data['od_value'].clip(lower=0)
+
+            # Step E: Fit standard curve and calculate concentrations (on clipped data)
+            curve_result = self._fit_standard_curve(plate_data)
+            curve_fits[plate_name] = curve_result
+
+            if curve_result['success']:
+                plate_data = self._calculate_concentrations(plate_data, curve_result)
+            else:
+                plate_data['concentration'] = None
+                plate_data['concentration_dilution_corrected'] = None
 
             # OD thresholds -> concentration using each plate curve
             model = curve_result.get("model")
@@ -164,14 +175,24 @@ class AnalysisEngine:
             errors.append("No calibrant concentrations provided. Please enter calibrant concentrations.")
             self.app.log("No calibrant concentrations provided. Please enter calibrant concentrations.")
 
-        # Check for negative controls 
+        # Check for blank or negative control wells (either satisfies LOD/LOQ requirement)
         if 'well_type' in connected_df.columns:
+            has_blanks    = (connected_df['well_type'] == 'BLANK').any()
             has_negatives = (connected_df['well_type'] == 'NEGATIVE_CONTROL').any()
-            if not has_negatives:
-                errors.append("WARNING: No NEGATIVE_CONTROL wells found. LOD/LOQ cannot be calculated.")
-                self.app.log("WARNING: No NEGATIVE_CONTROL wells found. LOD/LOQ cannot be calculated.")
+            if not has_blanks and not has_negatives:
+                errors.append("WARNING: No BLANK or NEGATIVE_CONTROL wells found. LOD/LOQ cannot be calculated.")
+                self.app.log("WARNING: No BLANK or NEGATIVE_CONTROL wells found. LOD/LOQ cannot be calculated.")
 
         return errors
+
+    def _compute_blank_mean(self, plate_data):
+        """Mean OD of BLANK wells; falls back to NEGATIVE_CONTROL if none."""
+        blanks = plate_data[plate_data['well_type'] == 'BLANK']['od_value'].dropna()
+        if len(blanks) == 0:
+            blanks = plate_data[plate_data['well_type'] == 'NEGATIVE_CONTROL']['od_value'].dropna()
+        if len(blanks) == 0:
+            return 0.0
+        return float(blanks.mean())
 
     def _fit_standard_curve(self, plate_data):
         """Fit multiple models and select best using AIC/BIC."""
@@ -273,6 +294,14 @@ class AnalysisEngine:
 
         plate_data['concentration'] = concentrations
         plate_data['concentration_dilution_corrected'] = concentrations_corrected
+
+        # Calibrant concentrations are known configured values — never derive them
+        # from curve inversion (which fails for low-OD calibrants near the LOD).
+        if 'order' in plate_data.columns:
+            cal_mask = plate_data['well_type'] == 'CALIBRANT'
+            original_conc = plate_data.loc[cal_mask, 'order'].map(self.calibrant_concentrations)
+            plate_data.loc[cal_mask, 'concentration'] = original_conc
+            plate_data.loc[cal_mask, 'concentration_dilution_corrected'] = original_conc
 
         return plate_data
 

@@ -525,13 +525,17 @@ class ELISAVisualizer:
                         text_color = 'white' if value > threshold else 'black'
 
                         # Build text: color value, size value, and label
-                        display_text = f'{value:.1f}'
+                        display_text = f'{value:.2f}'
                         if original_size_matrix is not None:
                             orig_size = original_size_matrix[i, j]
                             if orig_size != 0.42:  # 0.42 is default (no size data)
-                                display_text += f'\n({orig_size:.1f})'
+                                display_text += f'\n({orig_size:.2f})'
                         if label_matrix is not None and label_matrix[i, j] is not None:
-                            display_text += f'\n{label_matrix[i, j]}'
+                            lbl = label_matrix[i, j]
+                            try:
+                                display_text += f'\n{float(lbl):.2f}'
+                            except (ValueError, TypeError):
+                                display_text += f'\n{lbl}'
 
                         # Adjust font size if showing multiple lines
                         fontsize = 5 if (label_matrix is not None or original_size_matrix is not None) else 6
@@ -721,9 +725,9 @@ class ELISAVisualizer:
                 Patch(color=group['color'], alpha=0.3, label='IQR'),
                 Patch(color=group['color'], alpha=0.7, label='95% CI'),
                 Line2D([0], [0], color='#333333', linestyle='--', lw=0.9, alpha=0.7,
-                       label=f'Mean ({dstats["mean"]:.3f})'),
+                       label=f'Mean ({dstats["mean"]:.1f})'),
                 Line2D([0], [0], color='#333333', linestyle='-.', lw=0.8, alpha=0.7,
-                       label=f'Median ({dstats["median"]:.3f})'),
+                       label=f'Median ({dstats["median"]:.1f})'),
             ]
             ax.legend(handles=band_handles, loc='lower right', fontsize=7,
                       framealpha=0.8, title='Reference', title_fontsize=7)
@@ -743,7 +747,7 @@ class ELISAVisualizer:
         # Descriptive statistics block
         dstats = descriptive_stats(y_vals)
         if dstats:
-            ann_lines.append(f'SD = {dstats["sd"]:.3f}')
+            ann_lines.append(f'SD = {dstats["sd"]:.1f}')
         ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                 ha='left', va='top', fontsize=8, family='monospace',
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
@@ -801,9 +805,9 @@ class ELISAVisualizer:
                     Patch(color=group['color'], alpha=0.3, label='IQR'),
                     Patch(color=group['color'], alpha=0.7, label='95% CI'),
                     Line2D([0], [0], color='#555555', linestyle='--', lw=0.7, alpha=0.6,
-                           label=f'Mean ({dstats_g["mean"]:.3f})'),
+                           label=f'Mean ({dstats_g["mean"]:.1f})'),
                     Line2D([0], [0], color='#555555', linestyle='-.', lw=0.7, alpha=0.6,
-                           label=f'Median ({dstats_g["median"]:.3f})'),
+                           label=f'Median ({dstats_g["median"]:.1f})'),
                 ]
                 ax.legend(handles=band_handles, loc='lower right', fontsize=5.5,
                           framealpha=0.8, title='Reference', title_fontsize=5.5)
@@ -822,7 +826,7 @@ class ELISAVisualizer:
             # descriptive statistics
             dstats = descriptive_stats(y_vals)
             if dstats:
-                ann_lines.append(f'SD={dstats["sd"]:.3f}')
+                ann_lines.append(f'SD={dstats["sd"]:.1f}')
             ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                     ha='left', va='top', fontsize=7, family='monospace',
                     bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))

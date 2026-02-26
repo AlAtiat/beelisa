@@ -204,6 +204,13 @@ class AnalysisView:
         pca_label_box.add(pca_label_label, self.pca_show_plate_names)
         config_box.add(pca_label_box)
 
+        # Blank subtraction checkbox
+        blank_sub_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        blank_sub_box.add(toga.Label('Subtract Blanks:', style=Pack(margin=5, width=150)))
+        self.apply_blank_subtraction = toga.Switch('', style=Pack(margin=5), value=True)
+        blank_sub_box.add(self.apply_blank_subtraction)
+        config_box.add(blank_sub_box)
+
         # Standard curve axis options
         sc_log_box = toga.Box(style=Pack(direction=ROW, margin=5))
         sc_log_box.add(toga.Label('Log Standard Curve:', style=Pack(margin=5, width=150)))
@@ -794,6 +801,7 @@ class AnalysisView:
             'pca_show_plate_names': self.pca_show_plate_names.value if hasattr(self, 'pca_show_plate_names') else False,
             'std_curve_log_x': self.std_curve_log_x.value if hasattr(self, 'std_curve_log_x') else True,
             'std_curve_log_y': self.std_curve_log_y.value if hasattr(self, 'std_curve_log_y') else False,
+            'apply_blank_subtraction': self.apply_blank_subtraction.value if hasattr(self, 'apply_blank_subtraction') else True,
         }
 
         # Run analysis
@@ -802,6 +810,7 @@ class AnalysisView:
         self.app.engine.calibrant_concentrations = calibrant_config
         self.app.engine.dilution_factor = dilution_factor
         self.app.engine.lod_loq_mode = lod_mode
+        self.app.engine.apply_blank_subtraction = self.app.analysis_config.get('apply_blank_subtraction', True)
 
         try:
             self.app.log('Running ELISA analysis...')
