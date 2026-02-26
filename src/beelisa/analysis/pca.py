@@ -46,11 +46,11 @@ class ELISAPCAAnalyzer:
             Dict with scores, labels (group names), variance_explained, feature_names
             Or None if insufficient data (< 3 plates)
         """
-        # Build plate-to-group mapping
-        plate_to_group = {}
-        for group, plates in plate_groups.items():
-            for plate in plates:
-                plate_to_group[plate] = group
+        # Build plate-to-group mapping (fall back to single group when none defined)
+        if plate_groups:
+            plate_to_group = {p: g for g, plates in plate_groups.items() for p in plates}
+        else:
+            plate_to_group = {pn: 'All Plates' for pn in results.get('curve_fits', {})}
 
         # Extract features for each plate
         feature_rows = []
@@ -84,7 +84,7 @@ class ELISAPCAAnalyzer:
                 'RMSE': curve.get('rmse'),
                 'BIC': curve.get('bic'),
                 'CV % Cal.': cv,
-                "log(Fₚ)": logF
+                "log(F_p)": logF
             }
 
 
