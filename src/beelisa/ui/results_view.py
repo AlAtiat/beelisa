@@ -270,6 +270,16 @@ class ResultsView:
             else:
                 qc_text += "    LOQ: Not available\n"
 
+            # Inter-plate correction factor
+            pf_dict = results.get('plate_factors', {})
+            if pf_dict and plate in pf_dict:
+                f = pf_dict[plate]
+                direction = '↑ plate scaled up' if f < 1.0 else '↓ plate scaled down'
+                qc_text += f"\n  Inter-Plate Correction: F = {f:.4f}"
+                if f != 1.0:
+                    qc_text += f"  ({direction})"
+                qc_text += "\n"
+
             qc_text += "\n" + "=" * 60 + "\n\n"
 
         self.qc_summary.value = qc_text
@@ -440,6 +450,24 @@ class ResultsView:
                 self.app.log('Created combined standard curves plot')
             except Exception as e:
                 self.app.log(f'Error creating combined standard curves: {str(e)}')
+
+        # Per-group combined standard curve plots
+        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
+            for group_name, group_plates in self.app.plate_groups.items():
+                group_curve_data = [e for e in all_curve_data if e['plate_name'] in group_plates]
+                if len(group_curve_data) > 1:
+                    try:
+                        grp_path = visualizer.create_all_standard_curves_plot(
+                            group_curve_data,
+                            colormap=plot_colormap,
+                            log_x=std_curve_log_x,
+                            log_y=std_curve_log_y,
+                            title=f'Standard Curves - Group: {group_name}',
+                        )
+                        self.current_plots[f'std_curve_group_{group_name}'] = grp_path
+                        self.app.log(f'Created standard curves plot for group "{group_name}"')
+                    except Exception as e:
+                        self.app.log(f'Error creating group curves for "{group_name}": {str(e)}')
 
         # Generate PCA analysis - only if plate groups are defined
         if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
@@ -658,13 +686,24 @@ class ResultsView:
                     f"Standard Curve • {plate_name}"
                 ))
 
-        # combined
+        # combined all plates
         if self.current_plots.get('std_curve_all'):
             gallery.append((
                 "std_curve_all",
                 self.current_plots['std_curve_all'],
-                "Standard Curve • All Plates"
+                "Standard Curve \u2022 All Plates"
             ))
+
+        # per-group combined plots
+        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
+            for group_name in self.app.plate_groups:
+                key = f'std_curve_group_{group_name}'
+                if self.current_plots.get(key):
+                    gallery.append((
+                        key,
+                        self.current_plots[key],
+                        f"Standard Curve \u2022 Group: {group_name}",
+                    ))
 
         if not gallery:
             await self.app.main_window.dialog(

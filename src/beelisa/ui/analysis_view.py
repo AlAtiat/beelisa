@@ -211,6 +211,13 @@ class AnalysisView:
         blank_sub_box.add(self.apply_blank_subtraction)
         config_box.add(blank_sub_box)
 
+        # Inter-plate factor correction checkbox
+        plate_factor_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        plate_factor_box.add(toga.Label('Inter-Plate Correction:', style=Pack(margin=5, width=150)))
+        self.apply_plate_factor_correction = toga.Switch('', style=Pack(margin=5), value=False)
+        plate_factor_box.add(self.apply_plate_factor_correction)
+        config_box.add(plate_factor_box)
+
         # Standard curve axis options
         sc_log_box = toga.Box(style=Pack(direction=ROW, margin=5))
         sc_log_box.add(toga.Label('Log Standard Curve:', style=Pack(margin=5, width=150)))
@@ -802,6 +809,7 @@ class AnalysisView:
             'std_curve_log_x': self.std_curve_log_x.value if hasattr(self, 'std_curve_log_x') else True,
             'std_curve_log_y': self.std_curve_log_y.value if hasattr(self, 'std_curve_log_y') else False,
             'apply_blank_subtraction': self.apply_blank_subtraction.value if hasattr(self, 'apply_blank_subtraction') else True,
+            'apply_plate_factor_correction': self.apply_plate_factor_correction.value if hasattr(self, 'apply_plate_factor_correction') else False,
         }
 
         # Run analysis
@@ -811,6 +819,7 @@ class AnalysisView:
         self.app.engine.dilution_factor = dilution_factor
         self.app.engine.lod_loq_mode = lod_mode
         self.app.engine.apply_blank_subtraction = self.app.analysis_config.get('apply_blank_subtraction', True)
+        self.app.engine.apply_plate_factor_correction = self.app.analysis_config.get('apply_plate_factor_correction', False)
 
         try:
             self.app.log('Running ELISA analysis...')

@@ -13,6 +13,7 @@ class AnalysisEngine:
         self.dilution_factor = 1.0
         self.lod_loq_mode = "per_plate"  # "per_plate" or "global"
         self.apply_blank_subtraction = True
+        self.apply_plate_factor_correction = False
 
     def run_analysis(self, connected_df):
         """
@@ -43,16 +44,58 @@ class AnalysisEngine:
         lod_loq_values = {}
         glob_lod_loq_values = {}
     
-        # Calculate global LOD/LOQ
-        global_lod = None
-        global_loq = None
-
-        
-        # calculate them always as fallback if per plate has less than 3 negatives/blanks
-        global_lod, global_loq = self._calculate_lod_loq_global(connected_df)
-
         # Process each plate separately
         plate_names = connected_df['plate_name'].unique()
+
+        # Create one blank-subtracted copy upfront; reused for global LOD/LOQ and plate factors.
+        # When blank subtraction is off, sub_df is identical to connected_df.
+        sub_df = connected_df.copy()
+        if self.apply_blank_subtraction:
+            for pn in plate_names:
+                pdata = sub_df[sub_df['plate_name'] == pn]
+                bm = self._compute_blank_mean(pdata)
+                if bm != 0.0:
+                    sub_df.loc[sub_df['plate_name'] == pn, 'od_value'] -= bm
+
+        # Global LOD/LOQ computed on the same blank-subtracted OD space as per-plate computation
+        global_lod = None
+        global_loq = None
+        global_lod, global_loq = self._calculate_lod_loq_global(connected_df)
+
+        # Pre-compute plate factors from blank-subtracted calibrant ODs (needs all plates at once)
+        # Factors are computed per group when plate_groups are defined so that independent
+        # experimental runs are not normalised against each other.
+        plate_factors = {}
+        if self.apply_plate_factor_correction:
+            plate_groups = getattr(self.app, 'plate_groups', {})
+            if plate_groups:
+                grouped_plates = set()
+                for group_name, group_plates in plate_groups.items():
+                    valid_group = [pn for pn in group_plates if pn in set(plate_names)]
+                    if not valid_group:
+                        continue
+                    if len(valid_group) < 2:
+                        for pn in valid_group:
+                            plate_factors[pn] = 1.0
+                        grouped_plates.update(valid_group)
+                        self.app.log(f'[Group: {group_name}] Only 1 plate — F = 1.0 (no-op)')
+                        continue
+                    group_sub = sub_df[sub_df['plate_name'].isin(valid_group)]
+                    group_factors = self._compute_plate_factors(group_sub)
+                    plate_factors.update(group_factors)
+                    grouped_plates.update(valid_group)
+                    self.app.log(f'[Group: {group_name}] Factors from {len(valid_group)} plates')
+                ungrouped = [pn for pn in plate_names if pn not in grouped_plates]
+                if ungrouped:
+                    ug_sub = sub_df[sub_df['plate_name'].isin(ungrouped)]
+                    ug_factors = self._compute_plate_factors(ug_sub)
+                    plate_factors.update(ug_factors)
+                    self.app.log(f'[Ungrouped] Factors from {len(ungrouped)} plates')
+            else:
+                plate_factors = self._compute_plate_factors(sub_df)
+
+            for pn, f in plate_factors.items():
+                self.app.log(f'Plate factor [{pn}]: F = {f:.4f}')
 
         for plate_name in plate_names:
             lod_loq_method = None  # "per_plate_od" or "global_od" or None
@@ -64,7 +107,17 @@ class AnalysisEngine:
             qc = self._compute_qc_metrics(plate_data)
             qc_summary[plate_name] = qc
 
-            # Step B: Blank subtraction WITHOUT clip (preserves blank SD for LOD/LOQ)
+            # Step C': Compute LOD/LOQ from RAW plate_data (before any subtraction)
+            #          LOD_raw = μₙ + 3·σₙ  where μₙ, σₙ are from raw NC/blank wells
+            lod_od_raw = loq_od_raw = None
+            if self.lod_loq_mode == "per_plate":
+                lod_od_raw, loq_od_raw = self._calculate_lod_loq(plate_data, None)
+                if lod_od_raw is not None:
+                    lod_loq_method = "per_plate_od"
+                else:
+                    self.app.log(f"[{plate_name}] Per plate unavailable -> using GLOBAL fallback.")
+
+            # Step B: Blank subtraction
             blank_mean = 0.0
             if self.apply_blank_subtraction:
                 blank_mean = self._compute_blank_mean(plate_data)
@@ -72,23 +125,31 @@ class AnalysisEngine:
                     plate_data['od_value'] = plate_data['od_value'] - blank_mean
                     self.app.log(f'[{plate_name}] Blank-subtracted {blank_mean:.4f} OD from all wells')
 
-            # Step C: LOD/LOQ from subtracted pre-clip ODs (blank SD is preserved here)
-            if self.lod_loq_mode == "per_plate":
-                lod_od, loq_od = self._calculate_lod_loq(plate_data, None)
-                if lod_od is not None and loq_od is not None:
-                    lod_loq_method = "per_plate_od"
-                else:
-                    lod_od, loq_od = global_lod, global_loq
-                    lod_loq_method = "global_od"
-                    self.app.log(f"[{plate_name}] Per plate unavailable -> using GLOBAL fallback.")
+            # Step C'': Convert LOD/LOQ thresholds into blank-subtracted space
+            #           LOD' = LOD_raw − μₙ = 3·σₙ  (always > 0)
+            if lod_od_raw is not None:
+                lod_od = lod_od_raw - blank_mean
+                loq_od = loq_od_raw - blank_mean
             else:
+                # Global fallback already in blank-subtracted space from pre-loop
                 lod_od, loq_od = global_lod, global_loq
                 lod_loq_method = "global_od"
-                self.app.log(f"[{plate_name}] Using GLOBAL OD LOD/LOQ (mode=global).")
+                if self.lod_loq_mode != "per_plate":
+                    self.app.log(f"[{plate_name}] Using GLOBAL OD LOD/LOQ (mode=global).")
+
+            # Step B.5: Plate factor correction + scale LOD/LOQ thresholds into corrected space
+            if self.apply_plate_factor_correction:
+                f = plate_factors.get(plate_name, 1.0)
+                if f > 0 and f != 1.0:
+                    plate_data['od_value'] = plate_data['od_value'] / f
+                    if lod_od is not None:
+                        lod_od = lod_od / f
+                    if loq_od is not None:
+                        loq_od = loq_od / f
 
             # Step D: Clip to 0 after LOD computation
-            if blank_mean != 0.0:
-                plate_data['od_value'] = plate_data['od_value'].clip(lower=0)
+            # if blank_mean != 0.0:
+            #     plate_data['od_value'] = plate_data['od_value'].clip(lower=0)
 
             # Step E: Fit standard curve and calculate concentrations (on clipped data)
             curve_result = self._fit_standard_curve(plate_data)
@@ -144,6 +205,7 @@ class AnalysisEngine:
             'curve_fits': curve_fits,
             'lod_loq': lod_loq_values,
             'glob_lod_loq': glob_lod_loq_values,
+            'plate_factors': plate_factors,
 
         }
 
@@ -193,6 +255,75 @@ class AnalysisEngine:
         if len(blanks) == 0:
             return 0.0
         return float(blanks.mean())
+
+    def _compute_plate_factors(self, sub_df):
+        """ multiplicative plate factors using mid-range calibrant ODs.
+
+        Algorithm:
+        1. Compute per-plate per-order median OD: m_{p,k}  (median within plate/level,
+           avoids replicate-count distortion).
+        2. Compute per-order across-plate median reference: r_k  (median of m_{p,k},
+           robust to one outlier plate).
+        3. all levels where r_k > 0 are included in the factor computation.
+        4. Compute log(m_{p,k} / r_k) for each plate at each included order.
+        5. F_plate = exp(median of log-ratios).  Median is robust to one bad level.
+
+        Returns {plate_name: F_plate}. Single-plate runs return F=1.0 (no-op).
+        """
+        calibrants = sub_df[sub_df['well_type'] == 'CALIBRANT'].copy()
+        if calibrants.empty:
+            return {}
+
+        plate_names = calibrants['plate_name'].unique()
+        if len(plate_names) < 2:
+            return {pn: 1.0 for pn in plate_names}
+
+        # Step 1: per-plate per-order median OD (m_{p,k})
+        plate_order_medians = calibrants.groupby(['plate_name', 'order'])['od_value'].median()
+
+        # Step 2: per-order across-plate median reference (r_k)
+        order_vals = calibrants['order'].dropna().unique()
+        order_refs = {}
+        for order_val in order_vals:
+            vals = []
+            for pn in plate_names:
+                try:
+                    m = plate_order_medians.loc[(pn, order_val)]
+                    if pd.notna(m):
+                        vals.append(float(m))
+                except KeyError:
+                    pass
+            if len(vals) >= 2:
+                order_refs[order_val] = float(np.median(vals))
+
+        if not order_refs:
+            return {pn: 1.0 for pn in plate_names}
+
+        # Step 3: use all levels; skip only those with non-positive reference
+        # (r_k <= 0 means no usable signal at that level after blank subtraction)
+        mid_range = {k for k, r in order_refs.items() if r > 0}
+        if not mid_range:
+            mid_range = set(order_refs.keys())
+
+        # Steps 4 & 5: log-ratios per plate → median → factor
+        log_ratios = {pn: [] for pn in plate_names}
+        for order_val in mid_range:
+            r_k = order_refs[order_val]
+            if r_k <= 0:
+                continue
+            for pn in plate_names:
+                try:
+                    m_pk = plate_order_medians.loc[(pn, order_val)]
+                    if pd.notna(m_pk) and float(m_pk) > 0:
+                        log_ratios[pn].append(np.log(float(m_pk) / r_k))
+                except KeyError:
+                    pass
+
+        factors = {}
+        for pn in plate_names:
+            logs = log_ratios.get(pn, [])
+            factors[pn] = float(np.exp(np.median(logs))) if logs else 1.0
+        return factors
 
     def _fit_standard_curve(self, plate_data):
         """Fit multiple models and select best using AIC/BIC."""
@@ -420,18 +551,29 @@ class AnalysisEngine:
         mean_blank = glob_blank_od.mean()
         std_blank = glob_blank_od.std(ddof=1)
 
-        lod_od = mean_blank + 3 * std_blank
-        loq_od = mean_blank + 10 * std_blank
+        lod_raw = mean_blank + 3 * std_blank
+        loq_raw = mean_blank + 10 * std_blank
         
         self.app.log(f'LOD/LOQ calculated globaly from {len(glob_blank_od)} blank samples: '
                 f'mean={mean_blank:.4f}, std={std_blank:.4f}')
 
+        ## If we will subtract baseline later, report thresholds in subtracted space:
+        # LOD' = (mean + 3sd) - mean = 3sd
+        # LOQ' = 10sd
+        if self.apply_blank_subtraction:
+            lod_od = 3 * std_blank
+            loq_od = 10 * std_blank
+            self.app.log(f'GLOBAL LOD/LOQ (corrected space) from {len(glob_blank_od)} wells: sd={std_blank:.4f}')
+        else:
+            lod_od, loq_od = lod_raw, loq_raw
+            self.app.log(f'GLOBAL LOD/LOQ (raw space) from {len(glob_blank_od)} wells: mean={mean_blank:.4f}, sd={std_blank:.4f}')
+            
         # For now, use OD Values because concentrations from different plates, they are not comparable because each plate might use a different fit. conversion happens in per-plate processing
         return lod_od, loq_od
 
-    def _classify_results(self, plate_data, lod, loq):
+    def _classify_results(self, plate_data, lod_od, loq_od):
         """
-        Classify results based on LOD/LOQ thresholds.
+        Classify results based on OD-space LOD/LOQ thresholds.
 
         Classification:
             - < LOD: "Negative" or "Below Detection"
@@ -453,13 +595,13 @@ class AnalysisEngine:
                 statuses.append('Invalid')
                 continue
 
-            if lod is None or loq is None:
+            if lod_od is None or loq_od is None:
                 statuses.append('LOD/LOQ Not Available')
                 continue
 
-            if od < lod:
+            if od < lod_od:
                 statuses.append('Below detection (LOD)')
-            elif lod <= od < loq:
+            elif lod_od <= od < loq_od:
                 statuses.append('Borderline (LOD to LOQ)')
             else:
                 statuses.append('Quantifiable (above LOQ)')

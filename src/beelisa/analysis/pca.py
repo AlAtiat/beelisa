@@ -74,6 +74,9 @@ class ELISAPCAAnalyzer:
             # log_lod, log_loq = (np.log10(lod_od) if (lod_od is not None and np.isfinite(lod_od) and lod_od > 0) else np.nan, np.log10(loq_od) if (loq_od is not None and np.isfinite(loq_od) and loq_od > 0) else np.nan)
             log_lod, log_loq = (np.log10(lod) if (lod is not None and np.isfinite(lod) and lod > 0) else np.nan, np.log10(loq) if (loq is not None and np.isfinite(loq) and loq > 0) else np.nan)
 
+            F = results.get("plate_factors", {}).get(plate_name, None)
+            logF = np.log10(F) if (F is not None and np.isfinite(F) and F > 0) else np.nan
+
             row = {
                 'log(LOD)': log_lod,
                 'log(LOQ)': log_loq,
@@ -81,6 +84,7 @@ class ELISAPCAAnalyzer:
                 'RMSE': curve.get('rmse'),
                 'BIC': curve.get('bic'),
                 'CV % Cal.': cv,
+                "log(Fₚ)": logF
             }
 
 

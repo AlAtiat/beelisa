@@ -72,6 +72,29 @@ calculated from blank or negative control replicates:
 When per-plate blank replicates are insufficient, a global estimate
 pooled across all plates is used as a fallback.
 
+**Inter-Plate Factor Correction**
+
+When multiple plates are analyzed together, systematic differences in signal
+intensity between plates (e.g., due to different reagent lots, incubation
+conditions, or plate reader variation) can bias concentration estimates.
+BeELISA implements a multiplicative inter-plate factor correction based on
+calibrant wells, analogous to the ΔΔCt normalisation used in qPCR. (Ruijter et al., 2015 — Between-run correction for multi-plate qPCR experiments.
+Biomolecular Detection and Quantification.) (https://doi.org/10.1016/j.bdq.2015.07.001)
+
+For each calibrant dilution level *k*, the across-plate median OD of all
+plates is used as a reference *r_k*. A plate-specific correction factor is
+then computed as:
+
+    F_plate = exp( median_k( log( m_{p,k} / r_k ) ) )
+
+where *m_{p,k}* is the median OD of calibrant replicates for plate *p* at
+level *k*, and the outer median is taken over all valid calibrant levels
+(those with *r_k > 0*). Corrected ODs are obtained by dividing all wells on
+the plate by *F_plate*. LOD and LOQ thresholds are scaled by the same factor.
+
+If plates are assigned to groups, correction factors are computed independently
+within each group so that between-group biological differences are preserved.
+
 **Quality Control**
 
 Replicate agreement is assessed by the coefficient of variation (CV):
@@ -100,6 +123,7 @@ Features
 - Per-plate and global LOD/LOQ calculation
 - CV-based replicate QC with configurable thresholds
 - Dilution factor correction
+- per group Multiplicative inter-plate factor correction of standard curves
 - Result classification: below detection, borderline, quantifiable
 - TNM/UICC clinical staging integration
 - Spearman correlation with Benjamini-Hochberg FDR correction

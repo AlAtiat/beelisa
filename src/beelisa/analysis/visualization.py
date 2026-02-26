@@ -153,6 +153,7 @@ class ELISAVisualizer:
         colormap: str = 'viridis',
         log_x: bool = True,
         log_y: bool = False,
+        title: str = 'Standard Curves - All Plates',
     ) -> str:
         """
         Overlay all plates' standard curves on one plot.
@@ -216,7 +217,7 @@ class ELISAVisualizer:
             ax.set_yscale('log')
         ax.set_xlabel(f'Concentration ({self.concentration_unit})', fontsize=12, fontweight='bold')
         ax.set_ylabel(f'Optical Density (OD) ({self.od_wavelength})', fontsize=12, fontweight='bold')
-        ax.set_title('Standard Curves - All Plates', fontsize=14, fontweight='bold', pad=15)
+        ax.set_title(title, fontsize=14, fontweight='bold', pad=15)
         ax.legend(loc='best', fontsize=8)
         ax.grid(True, alpha=0.3, linestyle='--')
 
@@ -279,7 +280,7 @@ class ELISAVisualizer:
         """
         scores = pca_result.get('scores')
         variance_explained = pca_result.get('variance_explained')
-        labels = pca_result.get('labels')
+        # labels = pca_result.get('labels')
 
         if scores is None or variance_explained is None:
             return None
@@ -529,11 +530,11 @@ class ELISAVisualizer:
                         if original_size_matrix is not None:
                             orig_size = original_size_matrix[i, j]
                             if orig_size != 0.42:  # 0.42 is default (no size data)
-                                display_text += f'\n({orig_size:.2f})'
+                                display_text += f'\n({orig_size:.0f})'
                         if label_matrix is not None and label_matrix[i, j] is not None:
                             lbl = label_matrix[i, j]
                             try:
-                                display_text += f'\n{float(lbl):.2f}'
+                                display_text += f'\n{float(lbl):.0f}'
                             except (ValueError, TypeError):
                                 display_text += f'\n{lbl}'
 
