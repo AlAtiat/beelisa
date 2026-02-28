@@ -165,7 +165,11 @@ https://github.com/AlAtiat/beelisa/releases
 
 Install via terminal:
 
-    flatpak install BeELISA-1.0.3-x86_64.flatpak
+Ubuntu / Debian::
+
+    sudo apt install flatpak
+
+    sudo flatpak install BeELISA-1.0.4-x86_64.flatpak
 
 After installation, launch BeELISA from your application menu or run:
 

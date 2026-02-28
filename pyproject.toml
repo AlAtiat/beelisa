@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "BeELISA"
 bundle = "org.beelisa"
-version = "1.0.3"
+version = "1.0.4"
 url = "https://github.com/AlAtiat/beelisa"
 license.file = "LICENSE"
 author = "Aun Al Atiat"

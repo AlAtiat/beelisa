@@ -106,8 +106,11 @@ jobs:
       - name: Extract changelog for this version
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          awk "/^## ${VERSION}/{found=1; next} found && /^## /{exit} found{print}" CHANGELOG \
-            > release_notes.md
+          awk -v ver="$VERSION" '
+            $0 ~ ("^##[[:space:]]+" ver "([^0-9].*)?$") {found=1; next}
+            found && /^## / {exit}
+            found {print}
+          ' CHANGELOG > release_notes.md
           if [ ! -s release_notes.md ]; then
             echo "See CHANGELOG for full details." > release_notes.md
           fi

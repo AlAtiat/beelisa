@@ -1,5 +1,15 @@
 # BeELISA Release Notes
 
+## 1.0.4 (28 Feb 2026)
+
+### Added
+- Inter-plate correction integrated into standard curve
+- Optional blank subtraction with automatic negative control fallback
+- Logarithmic axis options for standard curve visualization
+- Extended pattern plot statistics: IQR, mean, SD, median, and confidence intervals
+- PCA handling for single plate groups (< 3 plates)
+
+
 ## 1.0.3 (25 Feb 2026)
 
 ### Fix
