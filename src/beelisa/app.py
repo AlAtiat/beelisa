@@ -369,6 +369,8 @@ class BeELISA(toga.App):
 
             # 5. Full refresh — merges data, rebuilds analysis view, etc.
             await self.perform_refresh()
+            if self.analysis_view is not None:
+                SessionIO.restore_analysis_config(self.analysis_view, self.analysis_config)
 
             self.log(f'Session loaded: {path}')
             await self.main_window.dialog(

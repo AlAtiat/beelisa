@@ -828,6 +828,7 @@ class AnalysisView:
             'apply_blank_subtraction': self.apply_blank_subtraction.value if hasattr(self, 'apply_blank_subtraction') else True,
             'apply_plate_factor_correction': self.apply_plate_factor_correction.value if hasattr(self, 'apply_plate_factor_correction') else False,
             'per_group_plots': self.per_group_plots_switch.value if hasattr(self, 'per_group_plots_switch') else True,
+            'dilution_factor_text': self.dilution_input.value if hasattr(self, 'dilution_input') else '',
         }
 
         # Run analysis

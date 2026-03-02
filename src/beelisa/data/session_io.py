@@ -147,3 +147,78 @@ class SessionIO:
         # Rebuild well count cache and regenerate plate_design_df
         plate_model._well_count_cache = {wt: 0 for wt in WellType}
         plate_model._initialize_well_counts()
+
+    @staticmethod
+    def restore_analysis_config(analysis_view, config: dict) -> None:
+        """Restore analysis UI widget values from a saved analysis_config dict."""
+        from ..ui.analysis_view import COLUMN_DISPLAY_NAMES
+
+        av  = analysis_view
+        cfg = config
+
+        def _to_display(actual):
+            if not actual or actual == 'None':
+                return 'None'
+            return COLUMN_DISPLAY_NAMES.get(actual, actual.replace('_', ' ').title())
+
+        dilution = cfg.get('dilution_factor_text') or cfg.get('dilution_factor', '')
+        if dilution and hasattr(av, 'dilution_input'):
+            av.dilution_input.value = str(dilution)
+
+        unit = cfg.get('concentration_unit', '')
+        if unit and hasattr(av, 'unit_input'):
+            av.unit_input.value = unit
+
+        od = cfg.get('od_wavelength', '')
+        if od and hasattr(av, 'od_input'):
+            av.od_input.value = od
+
+        lod_map = {'per_plate': 'Per Plate', 'global': 'Global'}
+        lod = cfg.get('lod_loq_mode')
+        if lod and hasattr(av, 'lod_mode_select'):
+            av.lod_mode_select.value = lod_map.get(lod, lod)
+
+        cmap = cfg.get('plots_colormap')
+        if cmap and hasattr(av, 'plots_colormap'):
+            av.plots_colormap.value = cmap
+
+        for attr, key in [
+            ('pca_show_plate_names',          'pca_show_plate_names'),
+            ('apply_blank_subtraction',       'apply_blank_subtraction'),
+            ('apply_plate_factor_correction', 'apply_plate_factor_correction'),
+            ('per_group_plots_switch',        'per_group_plots'),
+            ('std_curve_log_x',               'std_curve_log_x'),
+            ('std_curve_log_y',               'std_curve_log_y'),
+        ]:
+            val = cfg.get(key)
+            if val is not None and hasattr(av, attr):
+                getattr(av, attr).value = bool(val)
+
+        for attr, key in [
+            ('heatmap_color_var',     'heatmap_color_var'),
+            ('heatmap_size_var',      'heatmap_size_var'),
+            ('heatmap_label_var',     'heatmap_label_var'),
+            ('trend_date_var',        'trend_date_var'),
+            ('trend_value_var',       'trend_value_var'),
+            ('trend_grouping_var',    'trend_grouping_var'),
+            ('correlation_value_var', 'tnm_biomarker'),
+        ]:
+            actual = cfg.get(key)
+            if actual and hasattr(av, attr):
+                try:
+                    getattr(av, attr).value = _to_display(actual)
+                except Exception:
+                    pass
+
+        tnm_cols = set(cfg.get('tnm_columns', []))
+        if tnm_cols and hasattr(av, 'correlation_column_switches'):
+            col_map = getattr(av, 'column_name_mapping', {})
+            for dn, sw in av.correlation_column_switches.items():
+                sw.value = col_map.get(dn, dn) in tnm_cols
+
+        cal_concs = cfg.get('calibrant_concentrations', {})
+        if cal_concs and hasattr(av, 'calibrant_rows'):
+            for row in av.calibrant_rows:
+                val = cal_concs.get(row['order'])
+                if val is not None:
+                    row['input'].value = str(int(val) if val == int(val) else val)
