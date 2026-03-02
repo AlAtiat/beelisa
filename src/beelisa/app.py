@@ -192,8 +192,14 @@ class BeELISA(toga.App):
     # Plate management methods
     def add_plate(self, name, raw_df, id_df, raw_filename=None, plate_id_filename=None):
         """Add a new plate to the collection."""
+        existing = {p['name'] for p in self.plates}
+        candidate = name
+        counter = 2
+        while candidate in existing:
+            candidate = f"{name} ({counter})"
+            counter += 1
         self.plates.append({
-            'name': name,
+            'name': candidate,
             'raw_df': raw_df,
             'id_df': id_df,
             'raw_filename': raw_filename,
@@ -208,10 +214,18 @@ class BeELISA(toga.App):
             self._data_dirty = True
 
     def update_plate_name(self, index, new_name):
-        """Update plate name."""
+        """Update plate name, auto-suffixing if the name is already used by another plate."""
         if 0 <= index < len(self.plates):
-            self.plates[index]['name'] = new_name
+            existing = {p['name'] for i, p in enumerate(self.plates) if i != index}
+            candidate = new_name
+            counter = 2
+            while candidate in existing:
+                candidate = f"{new_name} ({counter})"
+                counter += 1
+            self.plates[index]['name'] = candidate
             self._data_dirty = True
+            return candidate
+        return None
 
     # View creation methods
     def create_elisa_view(self):

@@ -11,6 +11,7 @@ COLUMN_DISPLAY_NAMES = {
     'od_value': 'OD Value',
     'concentration': 'Raw Concentration',
     'plate_name': 'Plate Name',
+    'plate_group': 'Plate Group',
     'well_id': 'Well ID',
     'sample_id': 'Sample ID',
     'detection_status': 'Detection Status',
@@ -218,6 +219,13 @@ class AnalysisView:
         plate_factor_box.add(self.apply_plate_factor_correction)
         config_box.add(plate_factor_box)
 
+        # Per-plate Group Plot generation
+        grouping_box = toga.Box(style=Pack(direction=ROW, margin=5))
+        grouping_box.add(toga.Label('Generate per-group plots:', style=Pack(margin=5, width=150)))
+        self.per_group_plots_switch = toga.Switch('', style=Pack(margin=5), value=False)
+        grouping_box.add(self.per_group_plots_switch)
+        config_box.add(grouping_box)
+        
         # Standard curve axis options
         sc_log_box = toga.Box(style=Pack(direction=ROW, margin=5))
         sc_log_box.add(toga.Label('Log Standard Curve:', style=Pack(margin=5, width=150)))
@@ -452,6 +460,10 @@ class AnalysisView:
             display_items.append(display_name)
             self.column_name_mapping[display_name] = col
 
+        if getattr(self.app, 'plate_groups', None):
+            display_items.append('Plate Group')
+            self.column_name_mapping['Plate Group'] = 'plate_group'
+
         # Update heatmap variable selectors with display names
         if hasattr(self, 'heatmap_color_var') and self.heatmap_color_var:
             self.heatmap_color_var.items = display_items
@@ -477,7 +489,9 @@ class AnalysisView:
 
         if hasattr(self, 'trend_value_var') and self.trend_value_var:
             self.trend_value_var.items = ['None'] + display_items
-            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            if con_display in display_items:
+                self.trend_value_var.value = con_display
 
         if hasattr(self, 'trend_grouping_var') and self.trend_grouping_var:
             self.trend_grouping_var.items = ['None'] + display_items
@@ -504,9 +518,9 @@ class AnalysisView:
 
         if hasattr(self, 'correlation_value_var') and self.correlation_value_var:
             self.correlation_value_var.items = ['None'] + display_items
-            # con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
-            # if con_display in display_items:
-            #     self.correlation_value_var.value = con_display
+            con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
+            if con_display in display_items:
+                self.correlation_value_var.value = con_display
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -644,6 +658,7 @@ class AnalysisView:
         self.group_name_input.value = ''
         self.refresh_plate_checkboxes()
         self.refresh_groups_display()
+        self.update_variable_selection()
 
     def on_remove_group(self, group_name):
         """Remove a group and return plates to available pool."""
@@ -655,6 +670,7 @@ class AnalysisView:
             # Refresh UI
             self.refresh_plate_checkboxes()
             self.refresh_groups_display()
+            self.update_variable_selection()
 
     async def on_clear_all_groups(self, widget):
         """Clear all groups and return all plates to available."""
@@ -680,6 +696,7 @@ class AnalysisView:
             # Refresh UI
             self.refresh_plate_checkboxes()
             self.refresh_groups_display()
+            self.update_variable_selection()
 
     # END PLATE GROUPING METHODS
 
@@ -810,6 +827,7 @@ class AnalysisView:
             'std_curve_log_y': self.std_curve_log_y.value if hasattr(self, 'std_curve_log_y') else False,
             'apply_blank_subtraction': self.apply_blank_subtraction.value if hasattr(self, 'apply_blank_subtraction') else True,
             'apply_plate_factor_correction': self.apply_plate_factor_correction.value if hasattr(self, 'apply_plate_factor_correction') else False,
+            'per_group_plots': self.per_group_plots_switch.value if hasattr(self, 'per_group_plots_switch') else True,
         }
 
         # Run analysis

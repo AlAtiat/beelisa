@@ -189,6 +189,17 @@ class ResultsView:
         # Get concentration unit from config
         unit = self.app.analysis_config.get('concentration_unit', 'U/mL')
         od_wavelength = self.app.analysis_config.get('od_wavelength', '450/620 nm')
+        per_group_plots = self.app.analysis_config.get('per_group_plots', True)
+
+        # plate_group column from plate_groups mapping
+        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
+            _name_to_group = {
+                pn: gname
+                for gname, plist in self.app.plate_groups.items()
+                for pn in plist
+            }
+            results['data_df']['plate_group'] = results['data_df']['plate_name'].map(_name_to_group)
+            self.app.analysis_results['data_df'] = results['data_df']
 
         # Update results table
         data_df = results['data_df']
@@ -452,7 +463,7 @@ class ResultsView:
                 self.app.log(f'Error creating combined standard curves: {str(e)}')
 
         # Per-group combined standard curve plots
-        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
+        if per_group_plots and hasattr(self.app, 'plate_groups') and self.app.plate_groups:
             for group_name, group_plates in self.app.plate_groups.items():
                 group_curve_data = [e for e in all_curve_data if e['plate_name'] in group_plates]
                 if len(group_curve_data) > 1:
@@ -469,34 +480,40 @@ class ResultsView:
                     except Exception as e:
                         self.app.log(f'Error creating group curves for "{group_name}": {str(e)}')
 
-        # Generate PCA analysis - only if plate groups are defined
-        if hasattr(self.app, 'plate_groups') and self.app.plate_groups:
-            from ..analysis.pca import ELISAPCAAnalyzer
-            pca_analyzer = ELISAPCAAnalyzer(n_components=2)
+        # Generate PCA analysis — runs when ≥3 plates are available
+        from ..analysis.pca import ELISAPCAAnalyzer
+        pca_analyzer = ELISAPCAAnalyzer(n_components=2)
+        plate_groups_for_pca = (
+            self.app.plate_groups
+            if hasattr(self.app, 'plate_groups') and self.app.plate_groups
+            else {}
+        )
+        pca_result = pca_analyzer.analyze_plates(results, plate_groups_for_pca)
 
-            # Plate-level PCA using QC metrics (LOD, LOQ, R², RMSE, BIC, CV)
-            pca_result = pca_analyzer.analyze_plates(results, self.app.plate_groups)
+        if pca_result is not None:
+            # Compute 95% confidence ellipses (skipped silently for groups with <3 plates)
+            ellipse_data = pca_analyzer.compute_confidence_ellipses(
+                pca_result['scores'],
+                pca_result['labels'],
+                confidence=0.95
+            )
 
-            if pca_result is not None:
-                # Compute 95% confidence ellipses
-                ellipse_data = pca_analyzer.compute_confidence_ellipses(
-                    pca_result['scores'],
-                    pca_result['labels'],
-                    confidence=0.95
-                )
-
-                show_plate_names = self.app.analysis_config.get('pca_show_plate_names', False)
-                pca_path = visualizer.create_pca_plot(
-                    pca_result,
-                    title="Plate QC Metrics - PCA by Group",
-                    color_labels=pca_result['labels'],
-                    color_name="Plate Group",
-                    colormap=plot_colormap,
-                    ellipse_data=ellipse_data,
-                    point_labels=pca_result['plate_names'] if show_plate_names else None
-                )
-                self.current_plots['pca'] = pca_path
-                self.app.log(f'Created plate-level PCA with {len(self.app.plate_groups)} groups')
+            by_group = len(plate_groups_for_pca) >= 2
+            show_plate_names = self.app.analysis_config.get('pca_show_plate_names', False)
+            pca_path = visualizer.create_pca_plot(
+                pca_result,
+                title="Plate QC Metrics - PCA by Group" if by_group else "Plate QC Metrics - PCA by Plate",
+                color_labels=pca_result['labels'],
+                color_name="Plate Group" if by_group else "Plate",
+                colormap=plot_colormap,
+                ellipse_data=ellipse_data,
+                point_labels=pca_result['plate_names'] if show_plate_names else None
+            )
+            self.current_plots['pca'] = pca_path
+            self.app.log(
+                f'Created PCA ({"by group" if by_group else "by plate"}, '
+                f'{len(pca_result["plate_names"])} plates)'
+            )
 
         # Generate heatmaps for all plates using config from analysis_view
         heatmap_color_var = self.app.analysis_config.get('heatmap_color_var', 'od_value')
@@ -546,7 +563,7 @@ class ResultsView:
 
                     trend_paths = visualizer.create_trend_plot(
                         job_df, trend_value, job['group'],
-                        plate_groups=self.app.plate_groups if hasattr(self.app, 'plate_groups') else None,
+                        plate_groups=(self.app.plate_groups if hasattr(self.app, 'plate_groups') else None) if per_group_plots else None,
                         title=job['title'],
                         colormap=plots_colormap,
                         y_label=y_label,
@@ -596,7 +613,7 @@ class ResultsView:
                         clinical_plots_created += 1
 
                     # Per-group violins — index 1, 2, ...
-                    if plate_groups and len(plate_groups) > 1 and 'plate_name' in clinical_df.columns:
+                    if per_group_plots and plate_groups and len(plate_groups) > 1 and 'plate_name' in clinical_df.columns:
                         for g_idx, (group_name, group_plates) in enumerate(plate_groups.items(), 1):
                             group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
                             if col in group_df.columns and group_df[col].notna().sum() >= 5:
@@ -630,7 +647,7 @@ class ResultsView:
                         clinical_plots_created += 1
 
                     # Per-group correlation heatmaps — index 1, 2, ...
-                    if plate_groups and len(plate_groups) > 1 and 'plate_name' in clinical_df.columns:
+                    if per_group_plots and plate_groups and len(plate_groups) > 1 and 'plate_name' in clinical_df.columns:
                         for g_idx, (group_name, group_plates) in enumerate(plate_groups.items(), 1):
                             group_df = clinical_df[clinical_df['plate_name'].isin(group_plates)]
                             n_group = group_df[clinical_biomarker].notna().sum()

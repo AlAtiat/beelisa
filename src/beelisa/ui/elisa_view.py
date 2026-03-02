@@ -414,7 +414,9 @@ class Mainboard:
     
     def on_plate_name_change(self, widget, index):
         """edit merged plate name"""
-        self.app.update_plate_name(index, widget.value)
+        stored = self.app.update_plate_name(index, widget.value)
+        if stored is not None and stored != widget.value:
+            widget.value = stored
 
     def on_remove_plate(self, widget, index):
         """remove merged plates"""
