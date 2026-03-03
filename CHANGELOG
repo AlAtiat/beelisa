@@ -1,5 +1,18 @@
 # BeELISA Release Notes
 
+## 1.0.5 (03 Mar 2026)
+
+### Added
+- Data type recognition for pattern analysis
+- loading Session from saved session loads as well saved analysis configs
+- Logarithmic axis options for standard curve visualization
+- Extended pattern plot statistics on X-Axis: IQR, mean, SD, median, and confidence intervals
+- Plate grouping per user configuration
+
+### Fix
+- PCA handling for single plate groups (< 3 plates)
+
+
 ## 1.0.4 (28 Feb 2026)
 
 ### Added
