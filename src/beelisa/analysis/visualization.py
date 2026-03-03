@@ -720,18 +720,47 @@ class ELISAVisualizer:
             ax.axhline(dstats['mean'],   color="#333333A1", linestyle='--', lw=0.9, zorder=1, alpha=0.50)
             ax.axhline(dstats['median'], color='#333333A1', linestyle='-.', lw=0.8, zorder=1, alpha=0.50)
 
+            # ±1 SD lines (geometric in log space, arithmetic in linear space)
+            if use_log_y:
+                _log_y = np.log(y_vals[y_vals > 0])
+                _mean_log = np.mean(_log_y)
+                _sd_log   = np.std(_log_y, ddof=1)
+                _sd_upper = np.exp(_mean_log + _sd_log)
+                _sd_lower = np.exp(_mean_log - _sd_log)
+            else:
+                _sd_upper = dstats['mean'] + dstats['sd']
+                _sd_lower = dstats['mean'] - dstats['sd']
+            ax.axhline(_sd_upper, color='#333333A1', linestyle=':', lw=1.0, zorder=1, alpha=0.50)
+            ax.axhline(_sd_lower, color='#333333A1', linestyle=':', lw=1.0, zorder=1, alpha=0.50)
+
             # Reference bands legend with mean/median line shapes
             from matplotlib.lines import Line2D
             band_handles = [
                 Patch(color=group['color'], alpha=0.3, label='IQR'),
                 Patch(color=group['color'], alpha=0.7, label='95% CI'),
                 Line2D([0], [0], color='#333333', linestyle='--', lw=0.9, alpha=0.7,
-                       label=f'Mean ({dstats["mean"]:.1f})'),
+                       label='Mean'),
                 Line2D([0], [0], color='#333333', linestyle='-.', lw=0.8, alpha=0.7,
-                       label=f'Median ({dstats["median"]:.1f})'),
+                       label='Median'),
+                Line2D([0], [0], color='#333333', linestyle=':', lw=1.0, alpha=0.6,
+                       label='\u00b11 SD'),
             ]
             ax.legend(handles=band_handles, loc='lower right', fontsize=7,
                       framealpha=0.8, title='Reference', title_fontsize=7)
+
+        # --- Vertical reference bands & lines for X (numeric X only) ---
+        dstats_x = None
+        if not categorical_x:
+            dstats_x = descriptive_stats(x_vals)
+            if dstats_x:
+                _sx_upper = dstats_x['mean'] + dstats_x['sd']
+                _sx_lower = dstats_x['mean'] - dstats_x['sd']
+                ax.axvspan(dstats_x['q25'],    dstats_x['q75'],     alpha=0.12, color=group['color'], zorder=0, lw=0)
+                ax.axvspan(dstats_x['ci_low'], dstats_x['ci_high'], alpha=0.16, color=group['color'], zorder=0, lw=0)
+                ax.axvline(dstats_x['mean'],   color='#333333A1', linestyle='--', lw=0.9, zorder=1, alpha=0.50)
+                ax.axvline(dstats_x['median'], color='#333333A1', linestyle='-.', lw=0.8, zorder=1, alpha=0.50)
+                ax.axvline(_sx_upper, color='#333333A1', linestyle=':', lw=1.0, zorder=1, alpha=0.50)
+                ax.axvline(_sx_lower, color='#333333A1', linestyle=':', lw=1.0, zorder=1, alpha=0.50)
 
         group_title = f'{title} - {group["label"]}'
         self._format_trend_axes(ax, categorical_x, unique_x, use_log_y,
@@ -748,7 +777,9 @@ class ELISAVisualizer:
         # Descriptive statistics block
         dstats = descriptive_stats(y_vals)
         if dstats:
-            ann_lines.append(f'SD = {dstats["sd"]:.1f}')
+            ann_lines.append(f'SD (Y) = {dstats["sd"]:.1f}')
+        if dstats_x:
+            ann_lines.append(f'SD (X) = {dstats_x["sd"]:.1f}')
         ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                 ha='left', va='top', fontsize=8, family='monospace',
                 bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))
@@ -802,16 +833,46 @@ class ELISAVisualizer:
                            alpha=0.22, color=group['color'], zorder=0, lw=0)
                 ax.axhline(dstats_g['mean'],   color='#555555', linestyle='--', lw=0.7, zorder=1, alpha=0.45)
                 ax.axhline(dstats_g['median'], color='#555555', linestyle='-.', lw=0.7, zorder=1, alpha=0.45)
+
+                # ±1 SD lines (geometric in log space, arithmetic in linear space)
+                if use_log_y:
+                    _log_y = np.log(y_vals[y_vals > 0])
+                    _mean_log = np.mean(_log_y)
+                    _sd_log   = np.std(_log_y, ddof=1)
+                    _sd_upper = np.exp(_mean_log + _sd_log)
+                    _sd_lower = np.exp(_mean_log - _sd_log)
+                else:
+                    _sd_upper = dstats_g['mean'] + dstats_g['sd']
+                    _sd_lower = dstats_g['mean'] - dstats_g['sd']
+                ax.axhline(_sd_upper, color='#555555', linestyle=':', lw=0.9, zorder=1, alpha=0.45)
+                ax.axhline(_sd_lower, color='#555555', linestyle=':', lw=0.9, zorder=1, alpha=0.45)
+
                 band_handles = [
                     Patch(color=group['color'], alpha=0.3, label='IQR'),
                     Patch(color=group['color'], alpha=0.7, label='95% CI'),
                     Line2D([0], [0], color='#555555', linestyle='--', lw=0.7, alpha=0.6,
-                           label=f'Mean ({dstats_g["mean"]:.1f})'),
+                           label='Mean'),
                     Line2D([0], [0], color='#555555', linestyle='-.', lw=0.7, alpha=0.6,
-                           label=f'Median ({dstats_g["median"]:.1f})'),
+                           label='Median'),
+                    Line2D([0], [0], color='#555555', linestyle=':', lw=0.9, alpha=0.55,
+                           label='\u00b11 SD'),
                 ]
                 ax.legend(handles=band_handles, loc='lower right', fontsize=5.5,
                           framealpha=0.8, title='Reference', title_fontsize=5.5)
+
+            # --- Vertical reference bands & lines for X (numeric X only) ---
+            dstats_gx = None
+            if not categorical_x:
+                dstats_gx = descriptive_stats(x_vals)
+                if dstats_gx:
+                    _sx_upper = dstats_gx['mean'] + dstats_gx['sd']
+                    _sx_lower = dstats_gx['mean'] - dstats_gx['sd']
+                    ax.axvspan(dstats_gx['q25'],    dstats_gx['q75'],     alpha=0.12, color=group['color'], zorder=0, lw=0)
+                    ax.axvspan(dstats_gx['ci_low'], dstats_gx['ci_high'], alpha=0.16, color=group['color'], zorder=0, lw=0)
+                    ax.axvline(dstats_gx['mean'],   color='#555555', linestyle='--', lw=0.7, zorder=1, alpha=0.45)
+                    ax.axvline(dstats_gx['median'], color='#555555', linestyle='-.', lw=0.6, zorder=1, alpha=0.45)
+                    ax.axvline(_sx_upper, color='#555555', linestyle=':', lw=0.8, zorder=1, alpha=0.45)
+                    ax.axvline(_sx_lower, color='#555555', linestyle=':', lw=0.8, zorder=1, alpha=0.45)
 
             self._format_trend_axes(ax, categorical_x, unique_x, use_log_y,
                                      x_label, y_axis_label, group['label'], small=True)
@@ -827,7 +888,9 @@ class ELISAVisualizer:
             # descriptive statistics
             dstats = descriptive_stats(y_vals)
             if dstats:
-                ann_lines.append(f'SD={dstats["sd"]:.1f}')
+                ann_lines.append(f'SD(Y)={dstats["sd"]:.1f}')
+            if dstats_gx:
+                ann_lines.append(f'SD(X)={dstats_gx["sd"]:.1f}')
             ax.text(0.02, 0.98, '\n'.join(ann_lines), transform=ax.transAxes,
                     ha='left', va='top', fontsize=7, family='monospace',
                     bbox=dict(facecolor='white', alpha=0.8, edgecolor='gray'))

@@ -488,9 +488,11 @@ class AnalysisView:
         if hasattr(self, 'trend_date_var') and self.trend_date_var:
             from ..analysis.clinical import get_pattern_x_columns
             actual_cols = [self.column_name_mapping.get(n, n) for n in display_items]
+            _known_numeric_x = {'concentration_dilution_corrected', 'concentration', 'od_value'}
             x_valid = set(get_pattern_x_columns(self.app.connected_df, actual_cols))
             x_display_items = [n for n in display_items
-                               if self.column_name_mapping.get(n, n) in x_valid]
+                               if self.column_name_mapping.get(n, n) in x_valid
+                               or self.column_name_mapping.get(n, n) in _known_numeric_x]
             self.trend_date_var.items = ['None'] + x_display_items
 
         # Pattern Analysis — Y: numeric columns only (biomarker measurements)
