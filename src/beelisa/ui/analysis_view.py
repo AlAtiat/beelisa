@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import pandas as pd
 import toga
 from toga.style import Pack
 from toga.style.pack import COLUMN, ROW
@@ -483,14 +484,28 @@ class AnalysisView:
             # if sample_id_display in display_items:
             #     self.heatmap_label_var.value = sample_id_display
 
-        # Update trend variable selectors
+        # Pattern Analysis — X: numeric + TNM/UICC only (nominal string columns blocked)
         if hasattr(self, 'trend_date_var') and self.trend_date_var:
-            self.trend_date_var.items = ['None'] + display_items
+            from ..analysis.clinical import get_pattern_x_columns
+            actual_cols = [self.column_name_mapping.get(n, n) for n in display_items]
+            x_valid = set(get_pattern_x_columns(self.app.connected_df, actual_cols))
+            x_display_items = [n for n in display_items
+                               if self.column_name_mapping.get(n, n) in x_valid]
+            self.trend_date_var.items = ['None'] + x_display_items
 
+        # Pattern Analysis — Y: numeric columns only (biomarker measurements)
         if hasattr(self, 'trend_value_var') and self.trend_value_var:
-            self.trend_value_var.items = ['None'] + display_items
+            df = self.app.connected_df
+            _known_numeric = {'concentration_dilution_corrected', 'concentration', 'od_value'}
+            numeric_display_items = [
+                n for n in display_items
+                if self.column_name_mapping.get(n, n) in _known_numeric
+                or (self.column_name_mapping.get(n, n) in df.columns
+                    and pd.api.types.is_numeric_dtype(df[self.column_name_mapping.get(n, n)]))
+            ]
+            self.trend_value_var.items = ['None'] + numeric_display_items
             con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
-            if con_display in display_items:
+            if con_display in numeric_display_items:
                 self.trend_value_var.value = con_display
 
         if hasattr(self, 'trend_grouping_var') and self.trend_grouping_var:

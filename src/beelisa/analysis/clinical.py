@@ -172,3 +172,31 @@ def process_clinical_columns(data_df, clinical_columns, clinical_biomarker):
 
     return (clinical_df, all_analysis_cols, all_display_mapping,
             all_column_groups, biomarker_display, violin_info)
+
+
+def get_pattern_x_columns(df, col_list):
+    """Return the subset of col_list that is valid as X-axis for Pattern Analysis.
+
+    A column qualifies if it is:
+      - numeric dtype (continuous measurements, cleaned ordinal ranks), OR
+      - TNM-formatted strings (ordinal by clinical convention; processed by
+        build_trend_jobs into ordered stage sub-jobs), OR
+      - UICC-like strings (e.g. I/II/III/IV; cleaned to integers by build_trend_jobs)
+
+    Nominal string columns (Diagnosis, Sex, Treatment group, etc.) are excluded
+    because alphabetical sorting of nominal labels produces arbitrary numeric
+    ranks and scientifically invalid Spearman correlations.
+    """
+    detector = ClinicalDataProcessor()
+    valid = []
+    for col in col_list:
+        if col not in df.columns:
+            continue
+        s = df[col].dropna()
+        if len(s) == 0:
+            continue
+        if pd.api.types.is_numeric_dtype(s):
+            valid.append(col)
+        elif detector.detect_column_type(s) == 'tnm' or detector._is_uicc_like(s):
+            valid.append(col)
+    return valid
