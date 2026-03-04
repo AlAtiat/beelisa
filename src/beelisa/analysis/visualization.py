@@ -1382,5 +1382,93 @@ class ELISAVisualizer:
         temp_file = self._generate_unique_filename('tnm_correlation')
         fig.savefig(temp_file, dpi=150, bbox_inches='tight', facecolor='white')
         plt.close(fig)
+        return temp_file
 
+    def create_roc_plot(self, roc_result: dict,
+                        colormap: str = 'viridis',
+                        group_label: str = None) -> str:
+        """Create ROC curve plot and save to a temp PNG.
+
+        Args:
+            roc_result: dict returned by statistics.roc_analysis()
+            colormap: matplotlib colormap name for the ROC curve colour
+            group_label: optional label shown in the title (e.g. 'All Data', 'Group A')
+
+        Returns:
+            Absolute path to the saved PNG file.
+        """
+        fpr_arr = roc_result['roc_points']['fpr'].to_numpy()
+        tpr_arr = roc_result['roc_points']['tpr'].to_numpy()
+        roc_auc = roc_result['auc']
+        ci_low, ci_high = roc_result['auc_ci95']
+        best_thr = roc_result['best_threshold']
+        sensitivity = roc_result['sensitivity']
+        specificity = roc_result['specificity']
+        n_pos = roc_result['n_pos']
+        n_neg = roc_result['n_neg']
+        best_fpr = 1.0 - specificity
+        pos_label = roc_result['positive_label']
+        neg_label = roc_result['negative_label']
+
+        cmap = plt.get_cmap(colormap)
+        curve_color = cmap(0.7)   # mid-high position — visible across all standard colormaps
+        best_fpr_color = cmap(0.9)
+        fig, ax = plt.subplots(figsize=(7, 6))
+
+        # ROC curve
+        ax.plot(
+            fpr_arr, tpr_arr,
+            color=curve_color, lw=2,
+            label=f'AUC = {roc_auc:.3f}  (95% CI: {ci_low:.3f}\u2013{ci_high:.3f})'
+        )
+        band = roc_result.get('roc_curve_ci95')
+        if band is not None:
+            fpr_g, tpr_lo, tpr_hi = band
+            ax.plot(fpr_g, tpr_lo, color=curve_color, lw=1.2, ls=':', alpha=0.9)
+            ax.plot(fpr_g, tpr_hi, color=curve_color, lw=1.2, ls=':', alpha=0.9)
+            
+        # Random-classifier diagonal
+        ax.plot([0, 1], [0, 1], 'k--', lw=1, label='Random  (AUC = 0.50)')
+
+
+
+        # Formatting (cutoff unit)
+        score_col = roc_result.get('score_column', None)
+
+        if score_col in ['concentration', 'concentration_dilution_corrected']:
+            cutoff_line = f'Cutoff = {best_thr:.3f} ({self.concentration_unit})'
+        elif score_col == 'od_value':
+            cutoff_line = f'Cutoff = {best_thr:.3f} ({self.od_wavelength})'
+        else:
+            cutoff_line = f'Cutoff = {best_thr:.3f}'
+                
+        # Optimal cutoff point (Youden)
+        ax.scatter(
+            [best_fpr], [sensitivity],
+            color=best_fpr_color, zorder=3, s=40,
+            label=(
+                f'{cutoff_line}  (Youden)\n'
+                f'Sens. = {sensitivity:.3f},  Spec. = {specificity:.3f}'
+            )
+        )
+        # Drop-lines to axes for readability
+        ax.plot([best_fpr, best_fpr], [0, sensitivity], color=best_fpr_color, lw=0.8, ls=':', alpha=0.7)
+        ax.plot([0, best_fpr], [sensitivity, sensitivity], color=best_fpr_color, lw=0.8, ls=':', alpha=0.7)
+
+        ax.set_xlim(-0.02, 1.02)
+        ax.set_ylim(-0.02, 1.05)
+        ax.set_xlabel('False Positive Rate  (1 \u2212 Specificity)', fontsize=12)
+        ax.set_ylabel('True Positive Rate  (Sensitivity)', fontsize=12)
+        title_line = f'ROC Curve \u2014 {group_label}' if group_label else 'ROC Curve'
+        ax.set_title(
+            f'{title_line}\n{pos_label} (n={n_pos}) vs {neg_label} (n={n_neg})',
+            fontsize=13
+        )
+        ax.legend(loc='lower right', fontsize=9, framealpha=0.9)
+        ax.grid(True, alpha=0.4)
+
+        fig.tight_layout()
+        temp_file = self._generate_unique_filename('roc')
+        fig.savefig(temp_file, dpi=150, bbox_inches='tight', facecolor='white')
+        plt.close(fig)
         return temp_file

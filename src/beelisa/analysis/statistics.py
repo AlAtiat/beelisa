@@ -3,7 +3,7 @@
 
 import numpy as np
 from .models.lowess import lowess as np_lowess
-
+import pandas as pd
 
 def spearman_correlation(x, y):
     """Compute Spearman rho and p-value.
@@ -159,3 +159,122 @@ def descriptive_stats(y, confidence=0.95):
     return dict(mean=mean, median=median, sd=sd,
                 q25=q25, q75=q75,
                 ci_low=ci_low, ci_high=ci_high, n=n)
+
+
+def roc_analysis(df, score_col, label_col, positive_label, negative_label):
+    """Compute ROC curve, AUC, and Youden-optimal cutoff for binary classification.
+
+    Args:
+        df: DataFrame with analysis results (must contain well_type column)
+        score_col: Numeric predictor column (e.g. 'concentration_dilution_corrected')
+        label_col: Binary outcome column (e.g. 'Diagnosis')
+        positive_label: Value mapped to 1 (disease / case)
+        negative_label: Value mapped to 0 (control / reference)
+
+    Returns:
+        dict with keys: success, score_column, label_column, positive_label, negative_label,
+        n_pos, n_neg, auc, auc_ci95, best_threshold, sensitivity, specificity,
+        roc_points (DataFrame with fpr/tpr/threshold), notes, error (on failure)
+    """
+    from sklearn.metrics import roc_curve, auc as sk_auc
+
+    if positive_label == negative_label:
+        return {'success': False, 'error': 'Positive and negative class must differ.'}
+
+    # Restrict to SAMPLE wells
+    if 'well_type' in df.columns:
+        working = df[df['well_type'] == 'SAMPLE'].copy()
+    else:
+        working = df.copy()
+
+    # Keep only rows with both score and label present
+    working = working[working[score_col].notna() & working[label_col].notna()]
+
+    # Keep only the two chosen classes (safe for multi-class columns)
+    working = working[working[label_col].astype(str).isin(
+        {str(positive_label), str(negative_label)}
+    )]
+
+    y_score = working[score_col].to_numpy(dtype=float)
+    y_label = working[label_col].astype(str).to_numpy()
+
+    y_true = np.where(y_label == str(positive_label), 1, 0)
+
+    n_pos = int(np.sum(y_true == 1))
+    n_neg = int(np.sum(y_true == 0))
+
+    if n_pos < 5 or n_neg < 5:
+        return {
+            'success': False,
+            'error': (
+                f'Too few samples: {n_pos} positive, {n_neg} negative. '
+                'Need at least 5 per class to compute a meaningful ROC curve.'
+            ),
+        }
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_score, pos_label=1)
+    roc_auc = float(sk_auc(fpr, tpr))
+
+    # 95% CI band for the ROC curve (bootstrap, same 95% level as auc_ci95)
+    rng = np.random.default_rng(0)
+    fpr_grid = np.linspace(0.0, 1.0, 200)
+    tprs = []
+
+    for _ in range(500):
+        idx = rng.integers(0, len(y_true), len(y_true))
+        yt = y_true[idx]
+        ys = y_score[idx]
+        if yt.sum() == 0 or yt.sum() == len(yt):  # skip resamples missing a class
+            continue
+        fpr_b, tpr_b, _ = roc_curve(yt, ys, pos_label=1)
+        tpr_i = np.interp(fpr_grid, fpr_b, tpr_b)
+        tpr_i[0] = 0.0
+        tpr_i[-1] = 1.0
+        tprs.append(tpr_i)
+
+    roc_curve_ci95 = None
+    if len(tprs) >= 30:
+        tprs = np.vstack(tprs)
+        roc_curve_ci95 = (
+            fpr_grid,
+            np.percentile(tprs, 2.5, axis=0),
+            np.percentile(tprs, 97.5, axis=0),
+        )
+        
+    # Youden index: maximise sensitivity + specificity simultaneously
+    youden = tpr - fpr
+    i = int(np.argmax(youden))
+    best_threshold = float(thresholds[i])
+    sensitivity = float(tpr[i])
+    specificity = float(1.0 - fpr[i])
+
+    # Hanley–McNeil SE approximation for 95% CI
+    Q1 = roc_auc / (2.0 - roc_auc)
+    Q2 = 2.0 * roc_auc ** 2 / (1.0 + roc_auc)
+    var = (
+        roc_auc * (1.0 - roc_auc)
+        + (n_pos - 1) * (Q1 - roc_auc ** 2)
+        + (n_neg - 1) * (Q2 - roc_auc ** 2)
+    ) / (n_pos * n_neg)
+    se = float(np.sqrt(max(var, 0.0)))
+    ci_low = float(np.clip(roc_auc - 1.96 * se, 0.0, 1.0))
+    ci_high = float(np.clip(roc_auc + 1.96 * se, 0.0, 1.0))
+
+    roc_points = pd.DataFrame({'fpr': fpr, 'tpr': tpr, 'threshold': thresholds})
+
+    return {
+        'success': True,
+        'score_column': score_col,
+        'label_column': label_col,
+        'positive_label': positive_label,
+        'negative_label': negative_label,
+        'n_pos': n_pos,
+        'n_neg': n_neg,
+        'auc': roc_auc,
+        'auc_ci95': (ci_low, ci_high),
+        'best_threshold': best_threshold,
+        'sensitivity': sensitivity,
+        'specificity': specificity,
+        'roc_points': roc_points,
+        'roc_curve_ci95': roc_curve_ci95,
+    }

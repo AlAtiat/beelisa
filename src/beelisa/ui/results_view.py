@@ -26,6 +26,9 @@ class ResultsView:
         self.groups_list_container = None
         self.group_name_input = None
 
+        # ROC plot (stored in current_plots['roc'], shown in Plots tab)
+        self.plot_roc_btn = None
+
     def create_layout(self):
         """Create result view layout."""
         results = self.create_results_section()
@@ -105,6 +108,11 @@ class ResultsView:
             on_press=self.on_show_violin,
             style=Pack(margin=2, flex=1)
         )
+        self.plot_roc_btn = toga.Button(
+            'ROC Analysis',
+            on_press=self.on_show_roc,
+            style=Pack(margin=2, flex=1)
+        )
         plot_buttons_box = toga.Box(
             children=[
                 self.plot_std_curve_btn,
@@ -113,6 +121,7 @@ class ResultsView:
                 self.plot_trend_btn,
                 self.plot_correlation_btn,
                 self.plot_violin_btn,
+                self.plot_roc_btn,
             ],
             style=Pack(direction=ROW, margin=5),
         )
@@ -669,12 +678,72 @@ class ResultsView:
             except Exception as e:
                 self.app.log(f'Error creating clinical plots: {str(e)}')
 
+        # ROC Analysis — generate if configured in Analysis tab
+        roc_score_col = self.app.analysis_config.get('roc_score_col', 'None')
+        roc_label_col = self.app.analysis_config.get('roc_label_col', 'None')
+        roc_pos_label = self.app.analysis_config.get('roc_positive_label', '')
+        roc_neg_label = self.app.analysis_config.get('roc_negative_label', '')
+
+        if (roc_score_col != 'None' and roc_label_col != 'None'
+                and roc_pos_label and roc_neg_label
+                and roc_pos_label != roc_neg_label):
+            try:
+                from ..analysis.statistics import roc_analysis
+                plate_groups_roc = self.app.plate_groups if hasattr(self.app, 'plate_groups') else None
+
+                # All data — always generated
+                plots_colormap = self.app.analysis_config.get('plots_colormap', 'viridis')
+                roc_result = roc_analysis(
+                    results['data_df'], roc_score_col, roc_label_col,
+                    roc_pos_label, roc_neg_label
+                )
+                if roc_result['success']:
+                    roc_path = visualizer.create_roc_plot(
+                        roc_result, colormap=plots_colormap, group_label='All Data'
+                    )
+                    self.current_plots['roc_0_all'] = roc_path
+                    self.app.log(
+                        f'ROC (all): AUC={roc_result["auc"]:.3f}, '
+                        f'sens={roc_result["sensitivity"]:.3f}, '
+                        f'spec={roc_result["specificity"]:.3f}'
+                    )
+                else:
+                    self.app.log(f'ROC skipped: {roc_result["error"]}')
+
+                # Per-group ROC — only when per_group_plots is on and groups exist
+                self.app.log(
+                    f'ROC per-group check: per_group={per_group_plots}, '
+                    f'n_groups={len(plate_groups_roc) if plate_groups_roc else 0}, '
+                    f'plate_name_col={"plate_name" in results["data_df"].columns}'
+                )
+                if (per_group_plots and plate_groups_roc and len(plate_groups_roc) >= 1
+                        and 'plate_name' in results['data_df'].columns):
+                    for g_idx, (group_name, group_plates) in enumerate(plate_groups_roc.items(), 1):
+                        group_df = results['data_df'][results['data_df']['plate_name'].isin(group_plates)]
+                        group_roc = roc_analysis(
+                            group_df, roc_score_col, roc_label_col,
+                            roc_pos_label, roc_neg_label
+                        )
+                        if group_roc['success']:
+                            safe_group = group_name.replace(' ', '_')
+                            group_roc_path = visualizer.create_roc_plot(
+                                group_roc, colormap=plots_colormap, group_label=group_name
+                            )
+                            self.current_plots[f'roc_{g_idx}_{safe_group}'] = group_roc_path
+                            self.app.log(f'ROC ({group_name}): AUC={group_roc["auc"]:.3f}')
+                        else:
+                            self.app.log(f'ROC group "{group_name}" skipped: {group_roc["error"]}')
+
+            except Exception as e:
+                self.app.log(f'Error generating ROC plot: {str(e)}')
+
         # Update plate selector with available plates (exclude special plots)
         plate_names = [k for k in self.current_plots.keys()
                        if k not in ('pca', 'std_curve_all')
                        and not k.startswith('correlation_heatmap')
                        and not k.startswith('clinical_violin_')
-                       and not k.startswith('trend_')]
+                       and not k.startswith('trend_')
+                       and not k.startswith('roc_')]
         self.app.log(f'Generated plots for {len(plate_names)} plate(s)')
 
     async def on_clear_results(self, widget=None):
@@ -808,6 +877,31 @@ class ResultsView:
         self._set_gallery(gallery, start_index=0)
 
 
+    async def on_show_roc(self, widget):
+        keys = sorted([k for k in self.current_plots.keys() if k.startswith('roc_')])
+        if not keys:
+            await self.app.main_window.dialog(
+                toga.InfoDialog(
+                    'No ROC Plot',
+                    'Configure ROC settings (score column, outcome column, classes) '
+                    'in the Analysis tab and run analysis.'
+                )
+            )
+            return
+
+        gallery = []
+        for k in keys:
+            # roc_0_all  → label "All Data"
+            # roc_1_Group_A → label "Group A"
+            suffix = k[len('roc_'):]                              # "0_all" or "1_Group_A"
+            label = suffix.split('_', 1)[1] if '_' in suffix else suffix
+            label = label.replace('_', ' ')
+            if label.lower() == 'all':
+                label = 'All Data'
+            gallery.append((k, self.current_plots[k], f'ROC Analysis \u2022 {label}'))
+
+        self._set_gallery(gallery, start_index=0)
+
 
     def _set_gallery(self, gallery, start_index=0):
         """
@@ -928,6 +1022,13 @@ class ResultsView:
                             violin_path = self.current_plots[plot_key]
                             if os.path.exists(violin_path):
                                 zipf.write(violin_path, f'plots/{plot_key}.png')
+
+                    # Add ROC plots (all data + per group)
+                    for plot_key in sorted(self.current_plots.keys()):
+                        if plot_key.startswith('roc_'):
+                            roc_exp_path = self.current_plots[plot_key]
+                            if os.path.exists(roc_exp_path):
+                                zipf.write(roc_exp_path, f'plots/{plot_key}.png')
 
                     # Add all heatmaps
                     for plate_name, plots in self.current_plots.items():

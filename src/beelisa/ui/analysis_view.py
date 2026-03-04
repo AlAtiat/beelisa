@@ -38,10 +38,18 @@ class AnalysisView:
         self.groups_list_container = None
         self.group_name_input = None
 
+        # ROC analysis UI elements
+        self.roc_score_select = None
+        self.roc_outcome_select = None
+        self.roc_pos_select = None
+        self.roc_neg_select = None
+        self._roc_score_mapping = {}  # roc score display name → actual column name
+
     def create_layout(self):
         """Create analysis view layout."""
         config = self.create_configuration_section()
         correlation = self.create_correlation_settings_section()
+        roc = self.create_roc_settings_section()
         grouping = self.create_plate_grouping_section()
 
         self._left_box = toga.Box(
@@ -49,7 +57,7 @@ class AnalysisView:
             style=Pack(direction=COLUMN, flex=1),
         )
         self._right_box = toga.Box(
-            children=[correlation, grouping],
+            children=[correlation, roc, grouping],
             style=Pack(direction=COLUMN, flex=1),
         )
         # Cocoa: content must be None at construction — flex=1 triggers a layout pass that needs
@@ -364,6 +372,69 @@ class AnalysisView:
 
         return box
 
+    def create_roc_settings_section(self):
+        """ROC / Diagnostic Performance Analysis Settings."""
+        box = toga.Box(style=Pack(direction=COLUMN, margin=5))
+
+        box.add(toga.Divider())
+        box.add(toga.Label(
+            'ROC Analysis Settings:',
+            style=Pack(margin=5, font_weight='bold')
+        ))
+
+        def _row(label_text, widget):
+            row = toga.Box(style=Pack(direction=ROW, margin=2))
+            row.add(toga.Label(label_text, style=Pack(margin=5, width=130)))
+            row.add(widget)
+            return row
+
+        self.roc_score_select = toga.Selection(items=[], style=Pack(flex=1, margin=5))
+        self.roc_outcome_select = toga.Selection(
+            items=[],
+            on_change=self.on_roc_outcome_change,
+            style=Pack(flex=1, margin=5),
+        )
+        self.roc_pos_select = toga.Selection(items=[], style=Pack(flex=1, margin=5))
+        self.roc_neg_select = toga.Selection(items=[], style=Pack(flex=1, margin=5))
+
+        box.add(_row('Score column:', self.roc_score_select))
+        box.add(_row('Outcome column:', self.roc_outcome_select))
+        box.add(_row('Positive class:', self.roc_pos_select))
+        box.add(_row('Negative class:', self.roc_neg_select))
+
+        return box
+
+    def on_roc_outcome_change(self, widget):
+        """Update positive/negative class dropdowns when outcome column changes."""
+        self._trigger_roc_outcome_change()
+
+    def _trigger_roc_outcome_change(self):
+        if not self.roc_outcome_select or not self.roc_outcome_select.value:
+            return
+        outcome_val = str(self.roc_outcome_select.value)
+        if outcome_val == 'None':
+            if hasattr(self, 'roc_pos_select') and self.roc_pos_select:
+                self.roc_pos_select.items = []
+            if hasattr(self, 'roc_neg_select') and self.roc_neg_select:
+                self.roc_neg_select.items = []
+            return
+        actual_col = self.column_name_mapping.get(outcome_val)
+        if actual_col is None:
+            return
+
+        if actual_col == 'plate_group':
+            unique_vals = sorted(self.app.plate_groups.keys()) if getattr(self.app, 'plate_groups', None) else []
+        elif getattr(self.app, 'connected_df', None) is not None and actual_col in self.app.connected_df.columns:
+            unique_vals = sorted(str(v) for v in self.app.connected_df[actual_col].dropna().unique())
+        else:
+            unique_vals = []
+
+        self.roc_pos_select.items = unique_vals
+        self.roc_neg_select.items = unique_vals
+        if len(unique_vals) >= 2:
+            self.roc_pos_select.value = unique_vals[0]
+            self.roc_neg_select.value = unique_vals[1]
+
     def create_plate_grouping_section(self):
         """Create plate grouping panel for organizing plates into groups."""
         grouping_box = toga.Box(style=Pack(direction=COLUMN, margin=5))
@@ -538,6 +609,50 @@ class AnalysisView:
             con_display = COLUMN_DISPLAY_NAMES.get('concentration_dilution_corrected', 'Concentration')
             if con_display in display_items:
                 self.correlation_value_var.value = con_display
+
+        # ROC score dropdown — numeric columns only, prioritise biomarker columns
+        if hasattr(self, 'roc_score_select') and self.roc_score_select:
+            _known_numeric = {'concentration_dilution_corrected', 'concentration', 'od_value'}
+            _roc_score_display = {
+                'concentration_dilution_corrected': 'Concentration',
+                'concentration': 'Raw Concentration',
+                'od_value': 'OD Value',
+            }
+            self._roc_score_mapping = {}
+            roc_score_items = []
+            for n in display_items:
+                actual = self.column_name_mapping.get(n, n)
+                is_known = actual in _known_numeric
+                is_numeric = (actual in df.columns and pd.api.types.is_numeric_dtype(df[actual]))
+                if is_known or is_numeric:
+                    disp = _roc_score_display.get(actual, n)
+                    if disp not in self._roc_score_mapping:
+                        roc_score_items.append(disp)
+                        self._roc_score_mapping[disp] = actual
+            # Ensure priority order at the front
+            for prio_col in reversed(['od_value', 'concentration', 'concentration_dilution_corrected']):
+                prio_disp = _roc_score_display.get(prio_col, prio_col)
+                if prio_disp in self._roc_score_mapping and roc_score_items[0:1] != [prio_disp]:
+                    roc_score_items = [prio_disp] + [x for x in roc_score_items if x != prio_disp]
+            roc_score_items = ['None'] + roc_score_items
+            self.roc_score_select.items = roc_score_items
+            self.roc_score_select.value = 'None'
+
+        # ROC outcome dropdown — low-cardinality columns (2–20 unique values)
+        if hasattr(self, 'roc_outcome_select') and self.roc_outcome_select:
+            roc_outcome_items = []
+            for n in display_items:
+                actual = self.column_name_mapping.get(n, n)
+                if actual == 'plate_group':
+                    n_groups = len(self.app.plate_groups) if getattr(self.app, 'plate_groups', None) else 0
+                    if 2 <= n_groups <= 20:
+                        roc_outcome_items.append(n)
+                elif actual in df.columns and 2 <= df[actual].nunique(dropna=True) <= 20:
+                    roc_outcome_items.append(n)
+            roc_outcome_items = ['None'] + roc_outcome_items
+            self.roc_outcome_select.items = roc_outcome_items
+            self.roc_outcome_select.value = 'None'
+            self._trigger_roc_outcome_change()
 
     def rebuild_calibrant_rows(self):
         """ Rebuild count of calibrants"""
@@ -823,6 +938,14 @@ class AnalysisView:
         tnm_biomarker_display = self.correlation_value_var.value if hasattr(self, 'correlation_value_var') else 'None'
         tnm_biomarker = mapping.get(tnm_biomarker_display, 'concentration_dilution_corrected') if tnm_biomarker_display != 'None' else 'None'
 
+        # Get ROC settings
+        roc_score_display = str(self.roc_score_select.value) if (hasattr(self, 'roc_score_select') and self.roc_score_select and self.roc_score_select.value) else 'None'
+        roc_outcome_display = str(self.roc_outcome_select.value) if (hasattr(self, 'roc_outcome_select') and self.roc_outcome_select and self.roc_outcome_select.value) else 'None'
+        roc_score_col = self._roc_score_mapping.get(roc_score_display) or mapping.get(roc_score_display, 'None')
+        roc_label_col = mapping.get(roc_outcome_display, 'None') if roc_outcome_display != 'None' else 'None'
+        roc_positive_label = str(self.roc_pos_select.value) if (hasattr(self, 'roc_pos_select') and self.roc_pos_select and self.roc_pos_select.value) else ''
+        roc_negative_label = str(self.roc_neg_select.value) if (hasattr(self, 'roc_neg_select') and self.roc_neg_select and self.roc_neg_select.value) else ''
+
         # Update app config
         self.app.analysis_config = {
             'calibrant_concentrations': calibrant_config,
@@ -846,6 +969,10 @@ class AnalysisView:
             'apply_plate_factor_correction': self.apply_plate_factor_correction.value if hasattr(self, 'apply_plate_factor_correction') else False,
             'per_group_plots': self.per_group_plots_switch.value if hasattr(self, 'per_group_plots_switch') else True,
             'dilution_factor_text': self.dilution_input.value if hasattr(self, 'dilution_input') else '',
+            'roc_score_col': roc_score_col,
+            'roc_label_col': roc_label_col,
+            'roc_positive_label': roc_positive_label,
+            'roc_negative_label': roc_negative_label,
         }
 
         # Run analysis
