@@ -1,5 +1,16 @@
 # BeELISA Release Notes
 
+## 1.0.6 (10 Mar 2026)
+
+### Added
+- readjusts white color curves on grey,binary colormap plots
+- on export results explots aswell summary tables (Plate summary table, Group summary table, model comparison table and Cross-plate summary)
+- added indexing to uploaded merged plates by up and down move buttons
+- increased jitter on violin plot
+- added jitter on pattern plot
+
+
+
 ## 1.0.5 (03 Mar 2026)
 
 ### Added
