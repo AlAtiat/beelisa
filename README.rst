@@ -170,15 +170,15 @@ Download
 
    <table align="center">
    <tr>
-   <td align="center" width="33%">
-     <h3>🪟 Windows</h3>
+   <td align="center" width="30%">
+     <h3>Windows</h3>
      <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA.msi">
        <img src="https://img.shields.io/badge/Download%20Installer-.msi-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"/>
      </a>
      <br><br>
      <sub>Windows 10 / 11 · MSI Installer<br>Run the installer</sub>
    </td>
-   <td align="center" width="33%">
+   <td align="center" width="30%">
      <h3>macOS</h3>
      <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA-arm64.dmg">
        <img src="https://img.shields.io/badge/Apple_Silicon_(M1%2FM2%2FM3)-DMG-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS ARM64"/>
@@ -190,7 +190,7 @@ Download
      <br><br>
      <sub>macOS 12+ · DMG · Open the DMG and drag BeELISA to Applications.</sub>
    </td>
-   <td align="center" width="33%">
+   <td align="center" width="30%">
      <h3>Linux</h3>
      <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA.flatpak">
        <img src="https://img.shields.io/badge/Download%20Flatpak-.flatpak-E95420?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux"/>
