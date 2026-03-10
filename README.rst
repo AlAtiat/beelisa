@@ -63,15 +63,10 @@ concentrations via the inverse curve function.
 
 .. raw:: html
 
-   <p align="center">
-     <img src="docs/RESULTS_Plot_Curve.png" width="48%" alt="Example standard curve fit"/>&nbsp;
-     <img src="docs/standard_curves_all.png" width="48%" alt="All standard curves overview"/>
-   </p>
-
-.. image:: docs/RESULTS_MODEL_COMP.png
-   :align: center
-   :width: 680
-   :alt: Model comparison table
+   <table align="center"><tr>
+   <td align="center"><a href="docs/RESULTS_Plot_Curve.png"><img src="docs/RESULTS_Plot_Curve.png" width="200" alt="Standard curve fit"/></a></td>
+   <td align="center"><a href="docs/RESULTS_MODEL_COMP.png"><img src="docs/RESULTS_MODEL_COMP.png" width="200" alt="Model comparison"/></a></td>
+   </tr></table>
 
 **Limits of Detection and Quantification**
 
@@ -116,10 +111,11 @@ Replicate agreement is assessed by the coefficient of variation (CV):
 
 .. raw:: html
 
-   <p align="center">
-     <img src="docs/heatmap_PLATE_007_OD.xlsx.png" width="48%" alt="OD heatmap of a 96-well plate"/>&nbsp;
-     <img src="docs/RESULTS_QC.png"                width="48%" alt="QC report"/>
-   </p>
+   <table align="center"><tr>
+   <td align="center"><a href="docs/heatmap_PLATE_007_OD.xlsx.png"><img src="docs/heatmap_PLATE_007_OD.xlsx.png" width="200" alt="OD heatmap"/></a></td>
+   <td align="center"><a href="docs/RESULTS_QC.png"><img src="docs/RESULTS_QC.png" width="200" alt="QC report"/></a></td>
+    <td align="center"><a href="docs/pca_analysis.png"><img src="docs/pca_analysis.png" width="200" alt="PCA batch analysis"/></a></td>
+   </tr></table>
 
 **Clinical Correlation**
 
@@ -133,15 +129,10 @@ Batch effects across plates are assessed by principal component analysis
 
 .. raw:: html
 
-   <p align="center">
-     <img src="docs/trend_3_grid.png"                  width="48%" alt="LOWESS pattern grid"/>&nbsp;
-     <img src="docs/correlation_heatmap_2_GP2_IgA.png" width="48%" alt="Correlation heatmap"/>
-   </p>
-
-.. image:: docs/pca_analysis.png
-   :align: center
-   :width: 580
-   :alt: PCA batch effect analysis
+   <table align="center"><tr>
+   <td align="center"><a href="docs/trend_3_grid.png"><img src="docs/trend_3_grid.png" width="200" alt="LOWESS pattern grid"/></a></td>
+   <td align="center"><a href="docs/correlation_heatmap_2_GP2_IgA.png"><img src="docs/correlation_heatmap_2_GP2_IgA.png" width="200" alt="Correlation heatmap"/></a></td>
+   </tr></table>
 
 **ROC / Diagnostic Performance Analysis**
 
@@ -174,10 +165,9 @@ The ROC plot reports:
 Uncertainty of the ROC curve is estimated using bootstrap resampling to
 generate a 95% confidence band.
 
-.. image:: docs/roc_1_GP2_ISO1_IgA.png
-   :align: center
-   :width: 560
-   :alt: ROC curve with AUC and optimal cutoff
+.. raw:: html
+
+   <p align="center"><a href="docs/roc_1_GP2_ISO1_IgA.png"><img src="docs/roc_1_GP2_ISO1_IgA.png" width="200" alt="ROC curve"/></a></p>
 
 Features
 --------
@@ -201,11 +191,11 @@ Features
 .. raw:: html
 
    <table align="center"><tr>
-   <td><img src="docs/ELISAVIEW.png"     width="360" alt="ELISA import and plate setup"/></td>
-   <td><img src="docs/DATAVIEW.png"      width="360" alt="Data view"/></td>
+   <td align="center"><a href="docs/ELISAVIEW.png"><img src="docs/ELISAVIEW.png" width="200" alt="ELISA import view"/></a></td>
+   <td align="center"><a href="docs/DATAVIEW.png"><img src="docs/DATAVIEW.png" width="200" alt="Data view"/></a></td>
    </tr><tr>
-   <td><img src="docs/ANALYSISVIEW.png"  width="360" alt="Analysis configuration"/></td>
-   <td><img src="docs/RESULTS_TABLE.png" width="360" alt="Results table"/></td>
+   <td align="center"><a href="docs/ANALYSISVIEW.png"><img src="docs/ANALYSISVIEW.png" width="200" alt="Analysis configuration"/></a></td>
+   <td align="center"><a href="docs/RESULTS_TABLE.png"><img src="docs/RESULTS_TABLE.png" width="200" alt="Results table"/></a></td>
    </tr></table>
 
 
