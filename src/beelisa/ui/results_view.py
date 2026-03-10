@@ -971,6 +971,28 @@ class ResultsView:
 
                     zipf.writestr('results/analysis_results.csv', csv_content)
 
+                    # Plate summary table (all per-plate metrics)
+                    plate_summary = self._build_plate_summary_df(self.app.analysis_results)
+                    zipf.writestr('results/plate_summary.csv',
+                                  plate_summary.to_csv(index=False, float_format='%.6g'))
+
+                    # Group summary table (only when plate groups are defined)
+                    group_summary = self._build_group_summary_df(self.app.analysis_results)
+                    if group_summary is not None:
+                        zipf.writestr('results/group_summary.csv',
+                                      group_summary.to_csv(index=False, float_format='%.6g'))
+
+                    # Full model comparison table (all candidate models × all plates)
+                    model_comp_df = self._build_model_comparison_df(self.app.analysis_results)
+                    if not model_comp_df.empty:
+                        zipf.writestr('results/model_comparison.csv',
+                                      model_comp_df.to_csv(index=False, float_format='%.6g'))
+                        # Cross-plate summary (one row per model, aggregated metrics)
+                        mc_summary_df = self._build_model_comparison_summary_df(model_comp_df)
+                        if not mc_summary_df.empty:
+                            zipf.writestr('results/model_comparison_summary.csv',
+                                          mc_summary_df.to_csv(index=False, float_format='%.6g'))
+
                     # Add QC report
                     report_content = "ELISA Analysis Report\n"
                     report_content += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -1048,3 +1070,195 @@ class ResultsView:
             await self.app.main_window.dialog(
                 toga.ErrorDialog('Export Error', str(e))
             )
+
+    # Export helper: structured summary tables
+    def _build_plate_summary_df(self, results):
+        """Build a per-plate summary DataFrame covering all computed metrics."""
+        import pandas as pd
+
+        plate_groups = getattr(self.app, 'plate_groups', None) or {}
+        plate_to_group = {p: g for g, plates in plate_groups.items() for p in plates}
+
+        data_df     = results.get('data_df', pd.DataFrame())
+        curve_fits  = results.get('curve_fits', {})
+        qc_summary  = results.get('qc_summary', {})
+        lod_loq     = results.get('lod_loq', {})
+        plate_factors = results.get('plate_factors', {})
+
+        WTY_MAP = {
+            'CALIBRANT':        'calibrant',
+            'SAMPLE':           'sample',
+            'BLANK':            'blank',
+            'POSITIVE_CONTROL': 'pos_ctrl',
+            'NEGATIVE_CONTROL': 'neg_ctrl',
+        }
+        S_QUANT   = 'Quantifiable (above LOQ)'
+        S_BORDER  = 'Borderline (LOD to LOQ)'
+        S_BELOW   = 'Below detection (LOD)'
+        S_INVALID = 'Invalid'
+
+        rows = []
+        for plate in sorted(curve_fits.keys()):
+            cf = curve_fits[plate]
+            ll = lod_loq.get(plate, {})
+            qc = qc_summary.get(plate, {})
+            pf = plate_factors.get(plate, float('nan'))
+
+            row = {
+                'plate_name':     plate,
+                'group':          plate_to_group.get(plate, ''),
+                'model':          cf.get('model_name', '') if cf.get('success') else 'FAILED',
+                'r2':             cf.get('r_squared'),
+                'adj_r2':         cf.get('adjusted_r_squared'),
+                'rmse':           cf.get('rmse'),
+                'aic':            cf.get('aic'),
+                'bic':            cf.get('bic'),
+                'lod_conc':       ll.get('lod'),
+                'loq_conc':       ll.get('loq'),
+                'lod_od':         ll.get('lod_od'),
+                'loq_od':         ll.get('loq_od'),
+                'lod_loq_method': ll.get('lod_loq_method', ''),
+                'plate_factor':   pf,
+            }
+
+            for wt, suffix in WTY_MAP.items():
+                wq = qc.get(wt, {})
+                row[f'n_{suffix}']       = wq.get('n_wells')
+                row[f'mean_od_{suffix}'] = wq.get('mean_od')
+                row[f'cv_pct_{suffix}']  = wq.get('cv_percent')
+
+            if not data_df.empty and 'plate_name' in data_df.columns:
+                sdf = data_df[
+                    (data_df['plate_name'] == plate) &
+                    (data_df['well_type'] == 'SAMPLE')
+                ]
+                ds = sdf['detection_status'] if 'detection_status' in sdf.columns else pd.Series(dtype=str)
+                row['n_quantifiable'] = int((ds == S_QUANT).sum())
+                row['n_borderline']   = int((ds == S_BORDER).sum())
+                row['n_below_lod']    = int((ds == S_BELOW).sum())
+                row['n_invalid']      = int((ds == S_INVALID).sum())
+            else:
+                row.update({'n_quantifiable': None, 'n_borderline': None,
+                            'n_below_lod': None, 'n_invalid': None})
+
+            # Selected model fitted parameters (one column per parameter name)
+            params      = cf.get('params')
+            param_names = cf.get('param_names')
+            if params is not None and param_names is not None:
+                for pname, pval in zip(param_names, params):
+                    row[f'param_{pname}'] = float(pval)
+
+            rows.append(row)
+
+        return pd.DataFrame(rows)
+
+    def _build_group_summary_df(self, results):
+        """Build a per-group concentration summary. Returns None if no groups defined."""
+        import pandas as pd
+
+        plate_groups = getattr(self.app, 'plate_groups', None)
+        if not plate_groups:
+            return None
+
+        data_df = results.get('data_df', pd.DataFrame())
+        if data_df.empty or 'plate_name' not in data_df.columns:
+            return None
+
+        plate_to_group = {p: g for g, plates in plate_groups.items() for p in plates}
+
+        sdf = data_df[data_df['well_type'] == 'SAMPLE'].copy()
+        sdf['_group'] = sdf['plate_name'].map(plate_to_group)
+
+        conc_col = ('concentration_dilution_corrected'
+                    if 'concentration_dilution_corrected' in sdf.columns else 'concentration')
+
+        S_QUANT   = 'Quantifiable (above LOQ)'
+        S_BORDER  = 'Borderline (LOD to LOQ)'
+        S_BELOW   = 'Below detection (LOD)'
+        S_INVALID = 'Invalid'
+
+        rows = []
+        for gname in plate_groups.keys():
+            gdf  = sdf[sdf['_group'] == gname]
+            conc = gdf[conc_col].dropna() if conc_col in gdf.columns else pd.Series(dtype=float)
+            ds   = gdf['detection_status'] if 'detection_status' in gdf.columns else pd.Series(dtype=str)
+            n    = len(conc)
+            rows.append({
+                'group':          gname,
+                'n_plates':       len(plate_groups[gname]),
+                'n_samples':      len(gdf),
+                'n_quantifiable': int((ds == S_QUANT).sum()),
+                'n_borderline':   int((ds == S_BORDER).sum()),
+                'n_below_lod':    int((ds == S_BELOW).sum()),
+                'n_invalid':      int((ds == S_INVALID).sum()),
+                'mean_conc':      conc.mean()             if n else None,
+                'median_conc':    conc.median()           if n else None,
+                'sd_conc':        conc.std(ddof=1)        if n >= 2 else None,
+                'cv_pct_conc':    (conc.std(ddof=1) / conc.mean() * 100
+                                   if n >= 2 and conc.mean() != 0 else None),
+                'q25_conc':       conc.quantile(0.25)     if n else None,
+                'q75_conc':       conc.quantile(0.75)     if n else None,
+            })
+
+        return pd.DataFrame(rows)
+
+    def _build_model_comparison_summary_df(self, comp_df):
+        """Aggregate per-plate model comparison into a cross-plate summary.
+
+        Columns: Model, n_params, plates_estimable, mean_r2, sd_r2,
+                 mean_rmse, mean_aic, mean_bic, selection_frequency
+        """
+        import pandas as pd
+
+        if comp_df.empty:
+            return pd.DataFrame()
+
+        n_total = comp_df['plate_name'].nunique()
+
+        def _count_params(s):
+            return s.count('=') if isinstance(s, str) and s != 'N/A' else None
+
+        work = comp_df.copy()
+        work['_pc'] = work['Parameters'].apply(_count_params)
+
+        rows = []
+        model_order = work.drop_duplicates('Model')['Model'].tolist()
+        for model_name in model_order:
+            grp  = work[work['Model'] == model_name]
+            ok   = grp[grp['Status'] == 'Success']
+            n_ok  = len(ok)
+            n_sel = int(grp['selected'].sum())
+
+            pc = ok['_pc'].dropna()
+            rows.append({
+                'Model':               model_name,
+                'n_params':            int(pc.iloc[0]) if len(pc) else None,
+                'plates_estimable':    f'{n_ok} / {n_total}',
+                'mean_r2':             ok['R\u00b2'].mean()      if n_ok else None,
+                'sd_r2':               ok['R\u00b2'].std(ddof=1) if n_ok >= 2 else None,
+                'mean_rmse':           ok['RMSE'].mean()         if n_ok else None,
+                'mean_aic':            ok['AIC'].mean()          if n_ok else None,
+                'mean_bic':            ok['BIC'].mean()          if n_ok else None,
+                'selection_frequency': f'{n_sel} / {n_total}',
+            })
+
+        return pd.DataFrame(rows)
+
+    def _build_model_comparison_df(self, results):
+        """Concatenate per-plate model comparison tables into one DataFrame.
+
+        Columns: plate_name, Model, Parameters, R², Adj R², RMSE, AIC, BIC, Status, selected
+        """
+        import pandas as pd
+        curve_fits = results.get('curve_fits', {})
+        frames = []
+        for plate in sorted(curve_fits.keys()):
+            cf  = curve_fits[plate]
+            cdf = cf.get('comparison_df')
+            if cdf is not None and not cdf.empty:
+                chunk = cdf.copy()
+                chunk.insert(0, 'plate_name', plate)
+                selected_model = cf.get('model_name', '')
+                chunk['selected'] = chunk['Model'] == selected_model
+                frames.append(chunk)
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()

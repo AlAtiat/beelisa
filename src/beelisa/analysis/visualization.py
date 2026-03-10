@@ -56,6 +56,20 @@ class ELISAVisualizer:
         timestamp = int(time.time())
         return os.path.join(self.temp_dir, f'{prefix}_{timestamp}_{ELISAVisualizer._file_counter}.png')
 
+    @staticmethod
+    def _safe_color(rgba, max_lum: float = 0.85):
+        """Darken a colormap-sampled RGBA colour if it would be near-invisible on a white background.
+
+        Preserves hue by scaling all RGB channels equally so that the resulting
+        luminance equals max_lum.  Alpha is never modified.
+        """
+        r, g, b, a = rgba
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        if lum > max_lum:
+            scale = max_lum / lum
+            return (r * scale, g * scale, b * scale, a)
+        return rgba
+
     def create_standard_curve_plot(
         self,
         calibrant_concentrations: np.ndarray,
@@ -82,8 +96,8 @@ class ELISAVisualizer:
         fig, ax = plt.subplots(figsize=(10, 6))
         # Get curve color from colormap
         cmap = plt.get_cmap(colormap)
-        dots_color = cmap(0.3)
-        curve_color = cmap(0.7)
+        dots_color = self._safe_color(cmap(0.3))
+        curve_color = self._safe_color(cmap(0.7))
             
         # Scatter plot of calibrant data
         ax.scatter(calibrant_concentrations, calibrant_od_values, s=100, color=dots_color,
@@ -172,7 +186,7 @@ class ELISAVisualizer:
         annotation_lines = []
 
         for i, entry in enumerate(all_curve_data):
-            color = cmap(i / max(n - 1, 1))
+            color = self._safe_color(cmap(i / max(n - 1, 1)))
             plate_name = entry['plate_name']
             conc = entry['concentrations']
             od = entry['od_values']
@@ -300,7 +314,7 @@ class ELISAVisualizer:
             # Categorical coloring (e.g., batch, condition)
             unique_labels = np.unique(color_labels)
             cmap = plt.get_cmap(colormap)
-            colors_used = [cmap(i / max(len(unique_labels) - 1, 1)) for i in range(len(unique_labels))]
+            colors_used = [self._safe_color(cmap(i / max(len(unique_labels) - 1, 1))) for i in range(len(unique_labels))]
             show_legend = len(unique_labels) <= max_legend_items
 
             for i, lbl in enumerate(unique_labels):
@@ -355,7 +369,7 @@ class ELISAVisualizer:
             s = 0.9 * min(np.ptp(scores[:, 0]), np.ptp(scores[:, 1])) / (mags.max() + 1e-12)
 
             for (x, y), m, name in zip(L * s, mags, feature_names):
-                color = cmap(norm(m))
+                color = self._safe_color(cmap(norm(m)))
 
                 # dotted line
                 ax.plot([0, x], [0, y], linestyle=':', linewidth=1.0,
@@ -600,7 +614,7 @@ class ELISAVisualizer:
             color_groups = plot_df[grouping_column].unique()
             shape_groups = list(plate_groups.keys())
             n_colors = len(color_groups)
-            colors = {g: cmap(i / max(n_colors - 1, 1)) for i, g in enumerate(color_groups)}
+            colors = {g: self._safe_color(cmap(i / max(n_colors - 1, 1))) for i, g in enumerate(color_groups)}
             for i, sg in enumerate(shape_groups):
                 for cg in color_groups:
                     subset = plot_df[(plot_df['_plate_group'] == sg) &
@@ -615,7 +629,7 @@ class ELISAVisualizer:
         elif has_color:
             unique_groups = plot_df[grouping_column].unique()
             n = len(unique_groups)
-            colors = [cmap(i / max(n - 1, 1)) for i in range(n)]
+            colors = [self._safe_color(cmap(i / max(n - 1, 1))) for i in range(n)]
             for i, g in enumerate(unique_groups):
                 subset = plot_df[plot_df[grouping_column] == g].sort_values('_x_num')
                 groups.append({
@@ -625,7 +639,7 @@ class ELISAVisualizer:
         elif has_shape:
             shape_groups = list(plate_groups.keys())
             n = len(shape_groups)
-            colors = [cmap(i / max(n - 1, 1)) for i in range(n)]
+            colors = [self._safe_color(cmap(i / max(n - 1, 1))) for i in range(n)]
             for i, sg in enumerate(shape_groups):
                 subset = plot_df[plot_df['_plate_group'] == sg].sort_values('_x_num')
                 if len(subset) > 0:
@@ -636,7 +650,7 @@ class ELISAVisualizer:
                     })
         else:
             groups.append({
-                'label': 'All', 'subset': plot_df, 'color': cmap(0.6),
+                'label': 'All', 'subset': plot_df, 'color': self._safe_color(cmap(0.6)),
                 'marker': 'o', 'linestyle': '-',
             })
 
@@ -668,10 +682,16 @@ class ELISAVisualizer:
         sns.set_style("whitegrid")
         fig, ax = plt.subplots(figsize=(12, 6))
 
-        for group in groups_info:
-            ax.scatter(group['subset']['_x_num'], group['subset'][value_column],
+        for i, group in enumerate(groups_info):
+            x_raw = group['subset']['_x_num'].values
+            if categorical_x:
+                rng = np.random.default_rng(i)
+                x_plot = x_raw + rng.uniform(-0.25, 0.25, size=len(x_raw))
+            else:
+                x_plot = x_raw
+            ax.scatter(x_plot, group['subset'][value_column],
                        marker=group['marker'], facecolors='none', edgecolors=group['color'],
-                       s=20, alpha=0.8, linewidths=1, label=group['label'])
+                       s=25, alpha=0.65, linewidths=1, label=group['label'])
 
         ax.legend(bbox_to_anchor=(1.02, 1), loc='upper left', fontsize=8)
         self._format_trend_axes(ax, categorical_x, unique_x, use_log_y,
@@ -693,11 +713,16 @@ class ELISAVisualizer:
         x_vals = group['subset']['_x_num'].values
         y_vals = group['subset'][value_column].values
 
-        ax.scatter(x_vals, y_vals,
+        if categorical_x:
+            rng = np.random.default_rng(0)
+            x_plot = x_vals + rng.uniform(-0.25, 0.25, size=len(x_vals))
+        else:
+            x_plot = x_vals
+        ax.scatter(x_plot, y_vals,
                    marker=group['marker'], facecolors='none', edgecolors=group['color'],
-                   s=20, alpha=0.8, linewidths=1)
+                   s=25, alpha=0.65, linewidths=1)
 
-        # LOWESS trend line
+        # LOWESS trend line (always uses original x_vals, not jittered)
         x_t, y_t, *_ = self._compute_lowess_with_band(
             x_vals, y_vals, use_log_y=use_log_y)
         if x_t is not None:
@@ -810,11 +835,16 @@ class ELISAVisualizer:
             x_vals = group['subset']['_x_num'].values
             y_vals = group['subset'][value_column].values
 
-            ax.scatter(x_vals, y_vals,
+            if categorical_x:
+                rng = np.random.default_rng(idx)
+                x_plot = x_vals + rng.uniform(-0.25, 0.25, size=len(x_vals))
+            else:
+                x_plot = x_vals
+            ax.scatter(x_plot, y_vals,
                        marker=group['marker'], facecolors='none', edgecolors=group['color'],
-                       s=15, alpha=0.8, linewidths=0.8)
+                       s=18, alpha=0.65, linewidths=0.8)
 
-            # LOWESS trend line
+            # LOWESS trend line (always uses original x_vals, not jittered)
             x_t, y_t, *_ = self._compute_lowess_with_band(
                 x_vals, y_vals, use_log_y=use_log_y)
             if x_t is not None:
@@ -1074,21 +1104,22 @@ class ELISAVisualizer:
                 if len(subset) == 0:
                     continue
                 # Jitter x positions
+                rng = np.random.default_rng(i)
                 x_pos = subset[stage_column].map(x_to_idx).values.astype(float)
-                x_pos += np.random.uniform(-0.15, 0.15, size=len(x_pos))
+                x_pos += rng.uniform(-0.38, 0.38, size=len(x_pos))
                 ax.scatter(x_pos, subset[biomarker_column].values,
-                           marker=marker, s=25, alpha=0.7, edgecolors='gray',
-                           linewidths=0.5, facecolors='none', label=group_name, zorder=3)
+                           marker=marker, s=30, alpha=0.55, edgecolors='gray',
+                           linewidths=0.6, facecolors='none', label=group_name, zorder=3)
 
             ax.legend(title='Plate Group', fontsize=8, title_fontsize=9,
                       loc='upper left', framealpha=0.8)
         else:
             # No plate groups — plain swarm/stripplot (outline-only dots)
             n_before = len(ax.collections)
-            if len(plot_df) > 100:
+            if len(plot_df) > 200:
                 sns.stripplot(
                     data=plot_df, x=stage_column, y=biomarker_column,
-                    color="black", size=3, alpha=0.7, jitter=True, ax=ax, legend=False,
+                    color="black", size=4, alpha=0.45, jitter=0.38, ax=ax, legend=False,
                     order=sorted_categories
                 )
             else:
@@ -1411,8 +1442,8 @@ class ELISAVisualizer:
         neg_label = roc_result['negative_label']
 
         cmap = plt.get_cmap(colormap)
-        curve_color = cmap(0.7)   # mid-high position — visible across all standard colormaps
-        best_fpr_color = cmap(0.9)
+        curve_color = self._safe_color(cmap(0.7))
+        best_fpr_color = self._safe_color(cmap(0.3))
         fig, ax = plt.subplots(figsize=(7, 6))
 
         # ROC curve

@@ -213,6 +213,15 @@ class BeELISA(toga.App):
             del self.plates[index]
             self._data_dirty = True
 
+    def move_plate(self, index: int, direction: int):
+        """Swap plate at index with its neighbour. direction: -1 = up, +1 = down."""
+        new_index = index + direction
+        if 0 <= new_index < len(self.plates):
+            self.plates[index], self.plates[new_index] = (
+                self.plates[new_index], self.plates[index]
+            )
+            self._data_dirty = True
+
     def update_plate_name(self, index, new_name):
         """Update plate name, auto-suffixing if the name is already used by another plate."""
         if 0 <= index < len(self.plates):

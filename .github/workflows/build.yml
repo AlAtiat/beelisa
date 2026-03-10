@@ -72,21 +72,34 @@ jobs:
         if: runner.os == 'macOS'
         run: briefcase package --adhoc-sign
 
-      - name: Rename macOS DMG to include architecture
+      - name: Rename macOS DMG to stable architecture name
         if: runner.os == 'macOS'
         run: |
           for f in dist/*.dmg; do
-            base="${f%.dmg}"
-            mv "$f" "${base}-${{ matrix.arch-suffix }}.dmg"
+            mv "$f" "dist/BeELISA-${{ matrix.arch-suffix }}.dmg"
           done
 
       - name: Package (Linux flatpak)
         if: runner.os == 'Linux'
         run: briefcase package linux flatpak
 
+      - name: Rename Linux Flatpak to stable name
+        if: runner.os == 'Linux'
+        run: |
+          for f in dist/*.flatpak; do
+            mv "$f" dist/BeELISA.flatpak
+          done
+
       - name: Package (Windows)
         if: runner.os == 'Windows'
         run: briefcase package
+
+      - name: Rename Windows MSI to stable name
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $msi = Get-Item dist\*.msi | Select-Object -First 1
+          Move-Item $msi.FullName dist\BeELISA.msi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

@@ -12,7 +12,7 @@ class ELISAPCAAnalyzer:
     """
     PCA analysis for ELISA plate-level QC metrics.
 
-    Performs PCA on plate-level features (LOD, LOQ, R², RMSE, BIC, CV)
+    Performs PCA on plate-level features (LOD, LOQ, R², RMSE, BIC, CV, log(F_p))
     to detect batch effects and protocol differences between plate groups.
     """
 

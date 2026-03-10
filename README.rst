@@ -163,48 +163,93 @@ Features
 - Cross-platform: Windows, macOS, Linux
 
 
-Installation
-------------
+Download
+--------
 
-BeELISA is distributed as a self-contained native application built using BeeWare Briefcase, bundling the Python runtime and all dependencies.
+.. raw:: html
 
-**Install (Windows)**
+   <table align="center">
+   <tr>
+   <td align="center" width="33%">
+     <h3>🪟 Windows</h3>
+     <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA.msi">
+       <img src="https://img.shields.io/badge/Download%20Installer-.msi-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows"/>
+     </a>
+     <br><br>
+     <sub>Windows 10 / 11 · MSI Installer<br>Run the installer</sub>
+   </td>
+   <td align="center" width="33%">
+     <h3>macOS</h3>
+     <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA-arm64.dmg">
+       <img src="https://img.shields.io/badge/Apple_Silicon_(M1%2FM2%2FM3)-DMG-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS ARM64"/>
+     </a>
+     <br>
+     <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA-x86_64.dmg">
+       <img src="https://img.shields.io/badge/Intel_(x86__64)-DMG-555555?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS Intel"/>
+     </a>
+     <br><br>
+     <sub>macOS 12+ · DMG · Open the DMG and drag BeELISA to Applications.</sub>
+   </td>
+   <td align="center" width="33%">
+     <h3>Linux</h3>
+     <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA.flatpak">
+       <img src="https://img.shields.io/badge/Download%20Flatpak-.flatpak-E95420?style=for-the-badge&logo=linux&logoColor=white" alt="Download for Linux"/>
+     </a>
+     <br><br>
+     <sub>All distributions · Install via:<br><code>flatpak install BeELISA.flatpak</code></sub>
+   </td>
+   </tr>
+   </table>
 
-Download the latest installer from:
-
-https://github.com/AlAtiat/beelisa/releases
-
-Run the installer.
-
-
-**Install (macOS)**
-
-Download the appropriate macOS build (Apple Silicon ARM64 or Intel x86_64) from:
-
-https://github.com/AlAtiat/beelisa/releases
-
-Open the downloaded file and move BeELISA to the Applications folder.
-
-If macOS displays a security warning, right-click the application, select “Open”, and confirm.
+   <p align="center"><sub>
+   Links above always point to the latest release.
+   All releases and release notes are on the
+   <a href="https://github.com/AlAtiat/beelisa/releases">Releases page</a>.
+   </sub></p>
 
 
-**Install (Linux – Flatpak)**
+.. Installation
+.. ------------
 
-Download the latest `.flatpak` package from:
+.. BeELISA is distributed as a self-contained native application built using BeeWare Briefcase, bundling the Python runtime and all dependencies.
 
-https://github.com/AlAtiat/beelisa/releases
+.. **Install (Windows)**
 
-Install via terminal:
+.. Download the latest installer from:
 
-Ubuntu / Debian::
+.. https://github.com/AlAtiat/beelisa/releases
 
-    sudo apt install flatpak
+.. Run the installer.
 
-    sudo flatpak install BeELISA-1.0.4-x86_64.flatpak
 
-After installation, launch BeELISA from your application menu or run:
+.. **Install (macOS)**
 
-    flatpak run org.beelisa.beelisa
+.. Download the appropriate macOS build (Apple Silicon ARM64 or Intel x86_64) from:
+
+.. https://github.com/AlAtiat/beelisa/releases
+
+.. Open the downloaded file and move BeELISA to the Applications folder.
+
+.. If macOS displays a security warning, right-click the application, select “Open”, and confirm.
+
+
+.. **Install (Linux – Flatpak)**
+
+.. Download the latest `.flatpak` package from:
+
+.. https://github.com/AlAtiat/beelisa/releases
+
+.. Install via terminal:
+
+.. Ubuntu / Debian::
+
+..     sudo apt install flatpak
+
+..     sudo flatpak install BeELISA-1.0.4-x86_64.flatpak
+
+.. After installation, launch BeELISA from your application menu or run:
+
+..     flatpak run org.beelisa.beelisa
 
 
 Framework and Build System

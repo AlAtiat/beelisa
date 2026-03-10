@@ -388,7 +388,24 @@ class Mainboard:
             style=Pack(margin=2, width=80, flex=1)
         )
 
+        # Move up / down buttons
+        n_plates = len(self.app.plates)
+        up_btn = toga.Button(
+            '▲',
+            on_press=lambda widget, idx=index: self.on_move_plate(widget, idx, -1),
+            style=Pack(width=32, margin=2),
+            enabled=(index > 0),
+        )
+        down_btn = toga.Button(
+            '▼',
+            on_press=lambda widget, idx=index: self.on_move_plate(widget, idx, +1),
+            style=Pack(width=32, margin=2),
+            enabled=(index < n_plates - 1),
+        )
+
         row_box.add(name_input)
+        row_box.add(up_btn)
+        row_box.add(down_btn)
         row_box.add(remove_btn)
 
         # # Seperated uploaded files
@@ -421,5 +438,10 @@ class Mainboard:
     def on_remove_plate(self, widget, index):
         """remove merged plates"""
         self.app.remove_plate(index)
+        self.refresh_plates_list()
+
+    def on_move_plate(self, widget, index, direction):
+        """Move a plate up (-1) or down (+1) in the list."""
+        self.app.move_plate(index, direction)
         self.refresh_plates_list()
 
