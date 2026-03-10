@@ -61,6 +61,18 @@ Criterion (BIC), which penalizes model complexity.
 The model with the lowest BIC is applied to back-calculate unknown
 concentrations via the inverse curve function.
 
+.. raw:: html
+
+   <p align="center">
+     <img src="docs/RESULTS_Plot_Curve.png" width="48%" alt="Example standard curve fit"/>&nbsp;
+     <img src="docs/standard_curves_all.png" width="48%" alt="All standard curves overview"/>
+   </p>
+
+.. image:: docs/RESULTS_MODEL_COMP.png
+   :align: center
+   :width: 680
+   :alt: Model comparison table
+
 **Limits of Detection and Quantification**
 
 The limit of detection (LOD) and limit of quantification (LOQ) are
@@ -102,6 +114,13 @@ Replicate agreement is assessed by the coefficient of variation (CV):
 - Calibrant replicates: warning threshold > 15%
 - Sample and control replicates: warning threshold > 20%
 
+.. raw:: html
+
+   <p align="center">
+     <img src="docs/heatmap_PLATE_007_OD.xlsx.png" width="48%" alt="OD heatmap of a 96-well plate"/>&nbsp;
+     <img src="docs/RESULTS_QC.png"                width="48%" alt="QC report"/>
+   </p>
+
 **Clinical Correlation**
 
 Quantified biomarker concentrations are correlated with ordinal clinical
@@ -111,6 +130,18 @@ Benjamini-Hochberg false discovery rate (FDR) procedure. Pattern
 visualization uses locally weighted scatterplot smoothing (LOWESS).
 Batch effects across plates are assessed by principal component analysis
 (PCA) of plate-level QC metrics.
+
+.. raw:: html
+
+   <p align="center">
+     <img src="docs/trend_3_grid.png"                  width="48%" alt="LOWESS pattern grid"/>&nbsp;
+     <img src="docs/correlation_heatmap_2_GP2_IgA.png" width="48%" alt="Correlation heatmap"/>
+   </p>
+
+.. image:: docs/pca_analysis.png
+   :align: center
+   :width: 580
+   :alt: PCA batch effect analysis
 
 **ROC / Diagnostic Performance Analysis**
 
@@ -143,6 +174,11 @@ The ROC plot reports:
 Uncertainty of the ROC curve is estimated using bootstrap resampling to
 generate a 95% confidence band.
 
+.. image:: docs/roc_1_GP2_ISO1_IgA.png
+   :align: center
+   :width: 560
+   :alt: ROC curve with AUC and optimal cutoff
+
 Features
 --------
 
@@ -161,6 +197,16 @@ Features
 - ROC-based diagnostic performance analysis with AUC estimation, optimal cutoff determination (Youden index), and sensitivity/specificity reporting
 - Session save and restore (.beelisa format)
 - Cross-platform: Windows, macOS, Linux
+
+.. raw:: html
+
+   <table align="center"><tr>
+   <td><img src="docs/ELISAVIEW.png"     width="360" alt="ELISA import and plate setup"/></td>
+   <td><img src="docs/DATAVIEW.png"      width="360" alt="Data view"/></td>
+   </tr><tr>
+   <td><img src="docs/ANALYSISVIEW.png"  width="360" alt="Analysis configuration"/></td>
+   <td><img src="docs/RESULTS_TABLE.png" width="360" alt="Results table"/></td>
+   </tr></table>
 
 
 Download

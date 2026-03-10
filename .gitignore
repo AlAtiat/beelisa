@@ -65,5 +65,5 @@ logs/
 .briefcase/
 
 # Specific files
-docs/
+pre-release/
 diagrams/
