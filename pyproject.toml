@@ -149,7 +149,7 @@ system_runtime_requires = [
 ]
 
 [tool.briefcase.app.beelisa.linux.appimage]
-manylinux = "manylinux_2_28"
+manylinux = "manylinux_2_34"
 
 system_requires = [
     # Needed to compile pycairo wheel

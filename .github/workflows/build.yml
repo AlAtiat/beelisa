@@ -25,6 +25,10 @@ jobs:
             arch-suffix: x86_64
           - os: ubuntu-latest
             artifact-name: beelisa-linux
+            build-target: flatpak
+          - os: ubuntu-latest
+            artifact-name: beelisa-linux-appimage
+            build-target: appimage
 
     runs-on: ${{ matrix.os }}
 
@@ -41,27 +45,25 @@ jobs:
           python -m pip install -U pip
           python -m pip install -U briefcase
 
-      - name: Install Linux system dependencies
-        if: runner.os == 'Linux'
+      - name: Install Linux system dependencies (Flatpak)
+        if: runner.os == 'Linux' && matrix.build-target == 'flatpak'
         run: |
           sudo apt-get update
           sudo apt-get install -y flatpak flatpak-builder
 
       # --- Create ---
-      - name: Create (Linux flatpak)
+      - name: Create (Linux)
         if: runner.os == 'Linux'
-        run: briefcase create linux flatpak
-
-
+        run: briefcase create linux ${{ matrix.build-target }}
 
       - name: Create
         if: runner.os != 'Linux'
         run: briefcase create
 
       # --- Build ---
-      - name: Build (Linux flatpak)
+      - name: Build (Linux)
         if: runner.os == 'Linux'
-        run: briefcase build linux flatpak
+        run: briefcase build linux ${{ matrix.build-target }}
 
       - name: Build
         if: runner.os != 'Linux'
@@ -79,15 +81,26 @@ jobs:
             mv "$f" "dist/BeELISA-${{ matrix.arch-suffix }}.dmg"
           done
 
-      - name: Package (Linux flatpak)
-        if: runner.os == 'Linux'
+      - name: Package (Linux Flatpak)
+        if: runner.os == 'Linux' && matrix.build-target == 'flatpak'
         run: briefcase package linux flatpak
 
       - name: Rename Linux Flatpak to stable name
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && matrix.build-target == 'flatpak'
         run: |
           for f in dist/*.flatpak; do
             mv "$f" dist/BeELISA.flatpak
+          done
+
+      - name: Package (Linux AppImage)
+        if: runner.os == 'Linux' && matrix.build-target == 'appimage'
+        run: briefcase package linux appimage
+
+      - name: Rename Linux AppImage to stable name
+        if: runner.os == 'Linux' && matrix.build-target == 'appimage'
+        run: |
+          for f in dist/*.AppImage; do
+            mv "$f" dist/BeELISA.AppImage
           done
 
       - name: Package (Windows)
