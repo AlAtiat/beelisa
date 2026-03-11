@@ -221,7 +221,7 @@ Download
      </a>
      <br>
      <a href="https://github.com/AlAtiat/beelisa/releases/latest/download/BeELISA-x86_64.dmg">
-       <img src="https://img.shields.io/badge/Intel_(x86__64)-DMG-555555?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS Intel"/>
+       <img src="https://img.shields.io/badge/Intel_(x86__64)-DMG-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS Intel"/>
      </a>
      <br><br>
      <sub>macOS 12+ · DMG · Open the DMG and drag BeELISA to Applications.</sub>

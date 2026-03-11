@@ -79,7 +79,14 @@ class BeELISA(toga.App):
             shortcut=toga.Key.MOD_1 + 'o',
             order=4,
         )
-        self.commands.add(log_cmd, refresh_cmd, save_cmd, load_cmd)
+        update_cmd = toga.Command(
+            self.on_check_for_updates,
+            text='Check for Updates',
+            tooltip='Check GitHub for a newer version of BeELISA',
+            group=toga.Group.HELP,
+            order=1,
+        )
+        self.commands.add(log_cmd, refresh_cmd, save_cmd, load_cmd, update_cmd)
 
 
         # Set app icon 
@@ -412,6 +419,60 @@ class BeELISA(toga.App):
         except Exception:
             build()
             self.log_window.show()
+
+
+    def on_check_for_updates(self, widget):
+        asyncio.create_task(self.check_for_updates())
+        
+    async def check_for_updates(self, widget=None, silent=False):
+        """Fetch latest release from GitHub"""
+        import json
+        import urllib.request
+        import webbrowser
+
+        try:
+            loop = asyncio.get_event_loop()
+            url = "https://api.github.com/repos/AlAtiat/beelisa/releases/latest"
+
+            def fetch():
+                req = urllib.request.Request(url, headers={"User-Agent": "BeELISA"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    return json.loads(resp.read())
+
+            data = await loop.run_in_executor(None, fetch)
+            latest = data.get("tag_name", "").lstrip("v")
+            current = self.version
+
+            def parse(v):
+                return tuple(int(x) for x in v.split("."))
+
+            if parse(latest) > parse(current):
+                confirmed = await self.main_window.dialog(
+                    toga.ConfirmDialog(
+                        "Update Available",
+                        f"A new version {latest} is available.\n"
+                        f"You are using {current}.\n\n"
+                        "Open the download page?",
+                    )
+                )
+                if confirmed:
+                    webbrowser.open("https://github.com/AlAtiat/beelisa/releases/latest")
+            elif not silent:
+                await self.main_window.dialog(
+                    toga.InfoDialog(
+                        "No Updates",
+                        f"You are using the latest version ({current}).",
+                    )
+                )
+
+        except Exception as e:
+            if not silent:
+                await self.main_window.dialog(
+                    toga.ErrorDialog(
+                        "Update Check Failed",
+                        f"Could not check for updates:\n{str(e)}",
+                    )
+                )
 
     def log(self, message: str):
         status = getattr(self, 'status_label', None)

@@ -2,7 +2,7 @@
 [tool.briefcase]
 project_name = "BeELISA"
 bundle = "org.beelisa"
-version = "1.0.6"
+version = "1.0.7"
 url = "https://github.com/AlAtiat/beelisa"
 license.file = "LICENSE"
 author = "Aun Al Atiat"
@@ -10,12 +10,12 @@ author_email = "aun@alatiat.com"
 
 [tool.briefcase.app.beelisa]
 formal_name = "BeELISA"
-description = "BeELISA is a ELISA data analysis application developed using the BeeWare framework as part of a Bachelor thesis at Brandenburg University of Technology Cottbus-Senftenberg."
+description = "BeELISA is an ELISA data analysis application for standardized and reproducible evaluation of biomarker data in biomedical research."
 long_description = """
 BeELISA is an analytical application designed for the standardized and reproducible
 evaluation of enzyme-linked immunosorbent assay (ELISA) data in biomedical research.
 The application was developed as part of the Bachelor thesis entitled
-Statistical Evaluation of Glycoprotein Biomarkers in Pancreatic Ductal Adenocarcinoma Using an analysis application for ELISA Data Processing and Biomarker Pattern Recognition 
+Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using a analysis application for ELISA Data Processing and Biomarker Pattern Recognition 
 at Brandenburg University of Technology Cottbus-Senftenberg.
 """
 icon = "src/beelisa/resources/icons/beelisa"
