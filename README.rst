@@ -64,8 +64,8 @@ concentrations via the inverse curve function.
 .. raw:: html
 
    <table align="center"><tr>
-   <td align="center"><a href="docs/RESULTS_Plot_Curve.png"><img src="docs/RESULTS_Plot_Curve.png" width="200" alt="Standard curve fit"/></a></td>
-   <td align="center"><a href="docs/RESULTS_MODEL_COMP.png"><img src="docs/RESULTS_MODEL_COMP.png" width="200" alt="Model comparison"/></a></td>
+   <td align="center"><a href="resources/images/RESULTS_Plot_Curve.png"><img src="resources/images/RESULTS_Plot_Curve.png" width="200" alt="Standard curve fit"/></a></td>
+   <td align="center"><a href="resources/images/RESULTS_MODEL_COMP.png"><img src="resources/images/RESULTS_MODEL_COMP.png" width="200" alt="Model comparison"/></a></td>
    </tr></table>
 
 **Limits of Detection and Quantification**
@@ -112,9 +112,9 @@ Replicate agreement is assessed by the coefficient of variation (CV):
 .. raw:: html
 
    <table align="center"><tr>
-   <td align="center"><a href="docs/heatmap_PLATE_007_OD.xlsx.png"><img src="docs/heatmap_PLATE_007_OD.xlsx.png" width="200" alt="OD heatmap"/></a></td>
-   <td align="center"><a href="docs/RESULTS_QC.png"><img src="docs/RESULTS_QC.png" width="200" alt="QC report"/></a></td>
-    <td align="center"><a href="docs/pca_analysis.png"><img src="docs/pca_analysis.png" width="200" alt="PCA batch analysis"/></a></td>
+   <td align="center"><a href="resources/images/heatmap_PLATE_007_OD.xlsx.png"><img src="resources/images/heatmap_PLATE_007_OD.xlsx.png" width="200" alt="OD heatmap"/></a></td>
+   <td align="center"><a href="resources/images/RESULTS_QC.png"><img src="resources/images/RESULTS_QC.png" width="200" alt="QC report"/></a></td>
+    <td align="center"><a href="resources/images/pca_analysis.png"><img src="resources/images/pca_analysis.png" width="200" alt="PCA batch analysis"/></a></td>
    </tr></table>
 
 **Clinical Correlation**
@@ -130,8 +130,8 @@ Batch effects across plates are assessed by principal component analysis
 .. raw:: html
 
    <table align="center"><tr>
-   <td align="center"><a href="docs/trend_3_grid.png"><img src="docs/trend_3_grid.png" width="200" alt="LOWESS pattern grid"/></a></td>
-   <td align="center"><a href="docs/correlation_heatmap_2_GP2_IgA.png"><img src="docs/correlation_heatmap_2_GP2_IgA.png" width="200" alt="Correlation heatmap"/></a></td>
+   <td align="center"><a href="resources/images/trend_3_grid.png"><img src="resources/images/trend_3_grid.png" width="200" alt="LOWESS pattern grid"/></a></td>
+   <td align="center"><a href="resources/images/correlation_heatmap_2_GP2_IgA.png"><img src="resources/images/correlation_heatmap_2_GP2_IgA.png" width="200" alt="Correlation heatmap"/></a></td>
    </tr></table>
 
 **ROC / Diagnostic Performance Analysis**
@@ -167,7 +167,7 @@ generate a 95% confidence band.
 
 .. raw:: html
 
-   <p align="center"><a href="docs/roc_1_GP2_ISO1_IgA.png"><img src="docs/roc_1_GP2_ISO1_IgA.png" width="200" alt="ROC curve"/></a></p>
+   <p align="center"><a href="resources/images/roc_1_GP2_ISO1_IgA.png"><img src="resources/images/roc_1_GP2_ISO1_IgA.png" width="200" alt="ROC curve"/></a></p>
 
 Features
 --------
@@ -191,11 +191,11 @@ Features
 .. raw:: html
 
    <table align="center"><tr>
-   <td align="center"><a href="docs/ELISAVIEW.png"><img src="docs/ELISAVIEW.png" width="200" alt="ELISA import view"/></a></td>
-   <td align="center"><a href="docs/DATAVIEW.png"><img src="docs/DATAVIEW.png" width="200" alt="Data view"/></a></td>
+   <td align="center"><a href="resources/images/ELISAVIEW.png"><img src="resources/images/ELISAVIEW.png" width="200" alt="ELISA import view"/></a></td>
+   <td align="center"><a href="resources/images/DATAVIEW.png"><img src="resources/images/DATAVIEW.png" width="200" alt="Data view"/></a></td>
    </tr><tr>
-   <td align="center"><a href="docs/ANALYSISVIEW.png"><img src="docs/ANALYSISVIEW.png" width="200" alt="Analysis configuration"/></a></td>
-   <td align="center"><a href="docs/RESULTS_TABLE.png"><img src="docs/RESULTS_TABLE.png" width="200" alt="Results table"/></a></td>
+   <td align="center"><a href="resources/images/ANALYSISVIEW.png"><img src="resources/images/ANALYSISVIEW.png" width="200" alt="Analysis configuration"/></a></td>
+   <td align="center"><a href="resources/images/RESULTS_TABLE.png"><img src="resources/images/RESULTS_TABLE.png" width="200" alt="Results table"/></a></td>
    </tr></table>
 
 
