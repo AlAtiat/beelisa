@@ -21,9 +21,7 @@ Goal of the project
 
 This software was developed as part of the Bachelor thesis:
 
-    *Statistical Evaluation of Glycoprotein Biomarkers in Pancreatic Ductal
-    Adenocarcinoma Using an Analysis Application for ELISA Data Processing
-    and Biomarker Pattern Recognition*
+    *Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using an Analytical Application for ELISA Data Processing and Biomarker Pattern Recognition*
 
     Aun Al Atiat
     Brandenburg University of Technology Cottbus-Senftenberg
