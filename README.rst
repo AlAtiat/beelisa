@@ -347,7 +347,5 @@ Citation
 
 If you use BeELISA in research, please cite the associated thesis:
 
-    Al Atiat, A. (2026). *Statistical Evaluation of Glycoprotein Biomarkers
-    in Pancreatic Ductal Adenocarcinoma Using an Analysis Application for
-    ELISA Data Processing and Biomarker Pattern Recognition*. Bachelor
+    Al Atiat, A. (2026). *Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using an Analytical Application for ELISA Data Processing and Biomarker Pattern Recognition*. Bachelor
     thesis, Brandenburg University of Technology Cottbus-Senftenberg.
