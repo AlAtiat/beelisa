@@ -9,7 +9,7 @@ BeELISA
        <img src="https://img.shields.io/badge/python-3.11+-blue">
    </div>
 
- Author: Aun Al Atiat | License: GNU GPLv3
+ Author: Aun Al Atiat
 
 BeELISA is a cross-platform desktop application for the standardized and
 reproducible analysis of enzyme-linked immunosorbent assay (ELISA) data in
