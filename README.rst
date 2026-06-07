@@ -41,6 +41,79 @@ The application was developed with reproducibility as a primary objective.
 All analytical parameters — including curve model selection, clinical metadata parsers (e.g., TNM, UICC), and detection threshold definitions — are dataset-specific yet designed to remain reusable across different datasets.
 Clinical metadata parsers are applied only when the corresponding columns (e.g., “TNM” or “UICC”) are present in the dataset.
 
+
+All you need
+------------
+
+BeELISA requires at least three input tables/files: one plate OD file, the corresponding plate ID file, and one metadata file. The plate OD and plate ID files should follow the same 96-well plate layout and can be provided as `.csv` or `.xlsx` files. The plate ID file defines which sample is located in each well, while the plate OD file contains the corresponding optical density measurement for each well. The metadata file is a normal table with a header row and columns describing the samples; it must contain a sample ID column that matches the IDs used in the plate ID file. The plate design itself is configured inside the software.
+
+.. raw:: html
+
+   <table align="center" width="100%">
+   <tr>
+
+   <td width="33%" valign="top" align="center">
+   <details>
+   <summary><b>Plate ID file</b></summary>
+   <br>
+   <table border="1" cellpadding="3" cellspacing="0" style="font-size:11px; text-align:center;">
+   <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr>
+   <tr><th>A</th><td>STD1</td><td>STD1</td><td>S001</td><td>S002</td><td>S003</td><td>S004</td><td>S005</td><td>S006</td><td>S007</td><td>S008</td><td>S009</td><td>S010</td></tr>
+   <tr><th>B</th><td>STD2</td><td>STD2</td><td>S011</td><td>S012</td><td>S013</td><td>S014</td><td>S015</td><td>S016</td><td>S017</td><td>S018</td><td>S019</td><td>S020</td></tr>
+   <tr><th>C</th><td>STD3</td><td>STD3</td><td>S021</td><td>S022</td><td>S023</td><td>S024</td><td>S025</td><td>S026</td><td>S027</td><td>S028</td><td>S029</td><td>S030</td></tr>
+   <tr><th>D</th><td>STD4</td><td>STD4</td><td>S031</td><td>S032</td><td>S033</td><td>S034</td><td>S035</td><td>S036</td><td>S037</td><td>S038</td><td>S039</td><td>S040</td></tr>
+   <tr><th>E</th><td>STD5</td><td>STD5</td><td>S041</td><td>S042</td><td>S043</td><td>S044</td><td>S045</td><td>S046</td><td>S047</td><td>S048</td><td>S049</td><td>S050</td></tr>
+   <tr><th>F</th><td>NEG</td><td>NEG</td><td>S051</td><td>S052</td><td>S053</td><td>S054</td><td>S055</td><td>S056</td><td>S057</td><td>S058</td><td>S059</td><td>S060</td></tr>
+   <tr><th>G</th><td>S061</td><td>S062</td><td>S063</td><td>S064</td><td>S065</td><td>S066</td><td>S067</td><td>S068</td><td>S069</td><td>S070</td><td>S071</td><td>S072</td></tr>
+   <tr><th>H</th><td>S073</td><td>S074</td><td>S075</td><td>S076</td><td>S077</td><td>S078</td><td>S079</td><td>S080</td><td>S081</td><td>S082</td><td>S083</td><td>S084</td></tr>
+   </table>
+   <p>The ID file contains the sample or calibrator identifier assigned to each well.</p>
+   <p><code>resources/synthetic_data_1/plates/PLATE_001_ID.xlsx</code></p>
+   </details>
+   </td>
+
+   <td width="33%" valign="top" align="center">
+   <details>
+   <summary><b>Plate OD file</b></summary>
+   <br>
+   <table border="1" cellpadding="3" cellspacing="0" style="font-size:11px; text-align:center;">
+   <tr><th></th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th><th>9</th><th>10</th><th>11</th><th>12</th></tr>
+   <tr><th>A</th><td>2.102</td><td>2.087</td><td>0.812</td><td>0.743</td><td>1.031</td><td>0.655</td><td>0.912</td><td>1.223</td><td>0.534</td><td>0.689</td><td>0.771</td><td>0.845</td></tr>
+   <tr><th>B</th><td>1.742</td><td>1.735</td><td>0.621</td><td>0.583</td><td>0.711</td><td>0.902</td><td>0.488</td><td>0.557</td><td>0.632</td><td>0.784</td><td>0.846</td><td>0.923</td></tr>
+   <tr><th>C</th><td>1.203</td><td>1.190</td><td>0.445</td><td>0.512</td><td>0.601</td><td>0.734</td><td>0.821</td><td>0.944</td><td>0.377</td><td>0.425</td><td>0.503</td><td>0.588</td></tr>
+   <tr><th>D</th><td>0.742</td><td>0.755</td><td>0.389</td><td>0.467</td><td>0.529</td><td>0.612</td><td>0.703</td><td>0.812</td><td>0.356</td><td>0.441</td><td>0.532</td><td>0.608</td></tr>
+   <tr><th>E</th><td>0.332</td><td>0.341</td><td>0.288</td><td>0.355</td><td>0.402</td><td>0.481</td><td>0.552</td><td>0.624</td><td>0.298</td><td>0.344</td><td>0.421</td><td>0.509</td></tr>
+   <tr><th>F</th><td>0.091</td><td>0.087</td><td>0.251</td><td>0.316</td><td>0.389</td><td>0.456</td><td>0.518</td><td>0.587</td><td>0.246</td><td>0.309</td><td>0.376</td><td>0.462</td></tr>
+   <tr><th>G</th><td>0.271</td><td>0.335</td><td>0.412</td><td>0.506</td><td>0.577</td><td>0.643</td><td>0.725</td><td>0.809</td><td>0.286</td><td>0.359</td><td>0.421</td><td>0.498</td></tr>
+   <tr><th>H</th><td>0.312</td><td>0.384</td><td>0.456</td><td>0.529</td><td>0.604</td><td>0.681</td><td>0.759</td><td>0.833</td><td>0.337</td><td>0.408</td><td>0.492</td><td>0.561</td></tr>
+   </table>
+   <p>The OD file contains the optical density reading for each well in the same layout.</p>
+   <p><code>resources/synthetic_data_1/plates/PLATE_001_OD.xlsx</code></p>
+   </details>
+   </td>
+
+   <td width="33%" valign="top" align="center">
+   <details>
+   <summary><b>Metadata file</b></summary>
+   <br>
+   <table border="1" cellpadding="4" cellspacing="0" style="font-size:12px; text-align:center;">
+   <tr><th>sample_id</th><th>group</th><th>age</th><th>sex</th><th>stage</th></tr>
+   <tr><td>S001</td><td>PDAC</td><td>61</td><td>F</td><td>II</td></tr>
+   <tr><td>S002</td><td>PDAC</td><td>57</td><td>M</td><td>III</td></tr>
+   <tr><td>S003</td><td>Control</td><td>45</td><td>F</td><td>NA</td></tr>
+   <tr><td>S004</td><td>PDAC</td><td>69</td><td>M</td><td>IV</td></tr>
+   <tr><td>S005</td><td>Control</td><td>52</td><td>F</td><td>NA</td></tr>
+   </table>
+   <p>The metadata file contains additional information for each sample. The sample ID column must match the IDs in the plate ID file.</p>
+   <p><code>resources/synthetic_data_1/metadata.xlsx</code></p>
+   </details>
+   </td>
+
+   </tr>
+   </table>
+
+
+
 Scientific Methodology
 ----------------------
 
