@@ -21,7 +21,7 @@ Goal of the project
 
 This software was developed as part of the Bachelor thesis:
 
-    *Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using an Analytical Application for ELISA Data Processing and Biomarker Pattern Recognition*
+    *Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using an Analytical Application for ELISA Data Processing and Biomarker Pattern Recognition* (not public)
 
     Aun Al Atiat
     Brandenburg University of Technology Cottbus-Senftenberg
@@ -345,7 +345,6 @@ See the ``LICENSE`` file for the full license text.
 Citation
 --------
 
-If you use BeELISA in research, please cite the associated thesis:
+If you use BeELISA in research, please cite as:
 
-    Al Atiat, A. (2026). *Statistical Evaluation of Glycoprotein Biomarkers in Cancer Using an Analytical Application for ELISA Data Processing and Biomarker Pattern Recognition*. Bachelor
-    thesis, Brandenburg University of Technology Cottbus-Senftenberg.
+    Al Atiat, A. (2026). *BeELISA: A Software Framework for ELISA Data Analysis* (Version 1.0.7) [Computer software]. GitHub. https://github.com/AlAtiat/beelisa
